@@ -14,6 +14,7 @@ use std::time::Instant;
 
 use javryn_core::{RuntimeConfig, RuntimeError, RuntimeResult, Script};
 
+use crate::engine::JavaScriptEngine;
 /// The Javryn runtime.
 ///
 /// Owns the runtime configuration and manages the execution lifecycle.
@@ -27,15 +28,19 @@ use javryn_core::{RuntimeConfig, RuntimeError, RuntimeResult, Script};
 /// runtime.run(script)    → executes the lifecycle
 /// runtime.shutdown()     → releases resources
 /// ```
+use crate::engine::boa::BoaEngineAdapter;
+
+/// The Javryn runtime.
 ///
-/// # Future Extensibility
-///
-/// In V0.2+, this struct will hold a reference to the JavaScript engine
-/// and manage worker contexts. The public API is designed to accommodate
-/// these additions without breaking changes.
+/// Owns the runtime configuration and manages the execution lifecycle.
+/// This struct is constructed once, initialized, used to execute JavaScript,
+/// and then shut down.
 pub struct Runtime {
     /// The runtime configuration for this session.
     config: RuntimeConfig,
+
+    /// The JavaScript execution engine adapter.
+    engine: Box<dyn JavaScriptEngine>,
 
     /// Whether the runtime has been initialized.
     initialized: bool,
@@ -45,37 +50,27 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    /// Creates a new runtime with the given configuration.
-    ///
-    /// This does **not** perform initialization. Call [`run`](Self::run)
-    /// to start the full lifecycle.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`RuntimeError::Configuration`] if the configuration is invalid.
+    /// Creates a new runtime with default [`BoaEngineAdapter`].
     pub fn new(config: RuntimeConfig) -> Result<Self, RuntimeError> {
+        Self::with_engine(config, Box::new(BoaEngineAdapter::new()))
+    }
+
+    /// Creates a new runtime with a custom [`JavaScriptEngine`] adapter implementation.
+    pub fn with_engine(
+        config: RuntimeConfig,
+        engine: Box<dyn JavaScriptEngine>,
+    ) -> Result<Self, RuntimeError> {
         tracing::debug!(mode = %config.mode(), "creating runtime");
 
         Ok(Self {
             config,
+            engine,
             initialized: false,
             shut_down: false,
         })
     }
 
     /// Runs the full runtime lifecycle for the given script.
-    ///
-    /// # Lifecycle Steps
-    ///
-    /// 1. Initialize the runtime
-    /// 2. Execute the script (placeholder in V0.1)
-    /// 3. Produce a [`RuntimeResult`]
-    ///
-    /// The caller is responsible for calling [`shutdown`](Self::shutdown) afterward.
-    ///
-    /// # Errors
-    ///
-    /// Returns a [`RuntimeError`] if any lifecycle step fails.
     pub fn run(&mut self, script: &Script) -> Result<RuntimeResult, RuntimeError> {
         let start = Instant::now();
 
@@ -91,23 +86,15 @@ impl Runtime {
         Ok(RuntimeResult::new(elapsed))
     }
 
-    /// Shuts down the runtime and releases all resources.
-    ///
-    /// This method is idempotent — calling it multiple times is safe.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`RuntimeError::Shutdown`] if resource cleanup fails.
+    /// Shuts down the runtime and releases engine resources.
     pub fn shutdown(&mut self) -> Result<(), RuntimeError> {
         if self.shut_down {
             tracing::debug!("runtime already shut down");
             return Ok(());
         }
 
-        tracing::debug!("shutting down runtime");
-
-        // In V0.1, there are no resources to release.
-        // Future versions will shut down the JS engine, worker pool, etc.
+        tracing::debug!("shutting down runtime engine");
+        self.engine.shutdown()?;
 
         self.shut_down = true;
         tracing::debug!("runtime shut down complete");
@@ -120,10 +107,7 @@ impl Runtime {
         &self.config
     }
 
-    /// Initializes the runtime.
-    ///
-    /// In V0.1, this is a lightweight operation. Future versions will
-    /// initialize the JavaScript engine, allocate worker contexts, etc.
+    /// Initializes the runtime and its underlying JavaScript engine.
     fn initialize(&mut self) -> Result<(), RuntimeError> {
         if self.initialized {
             return Err(RuntimeError::Initialization {
@@ -131,34 +115,50 @@ impl Runtime {
             });
         }
 
-        tracing::debug!("initializing runtime");
-
-        // Future: Initialize JS engine, allocate worker pool, etc.
+        tracing::debug!("initializing runtime and engine");
+        self.engine.initialize(self.config.mode())?;
 
         self.initialized = true;
-        tracing::debug!("runtime initialized");
+        tracing::debug!("runtime and engine initialized");
 
         Ok(())
     }
 
-    /// Executes the V0.1 placeholder runtime logic.
-    ///
-    /// In V0.1, this validates that the script is ready and logs
-    /// diagnostic information. In V0.2+, this will execute JavaScript.
-    fn execute(&self, script: &Script) -> Result<(), RuntimeError> {
+    /// Reads the script source file and executes it via the JavaScript engine adapter.
+    fn execute(&mut self, script: &Script) -> Result<(), RuntimeError> {
         tracing::debug!(
-            script = ?script.file_name(),
+            script = %script.path().display(),
             size = script.metadata().file_size(),
-            "executing script (V0.1 placeholder)"
+            "reading JavaScript file source"
         );
 
-        // V0.1: No JavaScript execution.
-        // The script has already been validated by the time we get here.
-        // Future versions will pass the script to the JS engine.
+        let source = match std::fs::read_to_string(script.path()) {
+            Ok(content) => content,
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+                return Err(RuntimeError::ScriptUnreadable {
+                    path: script.path().to_path_buf(),
+                    reason: "invalid UTF-8 encoding in JavaScript source file".to_string(),
+                });
+            }
+            Err(e) => {
+                return Err(RuntimeError::ScriptUnreadable {
+                    path: script.path().to_path_buf(),
+                    reason: e.to_string(),
+                });
+            }
+        };
 
-        tracing::info!(
-            script = ?script.file_name(),
-            "Javryn V0.1: script validated successfully (JavaScript execution not yet implemented)"
+        tracing::debug!(
+            script = %script.path().display(),
+            "executing script in engine"
+        );
+
+        let result = self.engine.execute(&source, script.path())?;
+
+        tracing::debug!(
+            script = %script.path().display(),
+            success = result.success,
+            "script execution finished"
         );
 
         Ok(())
@@ -178,7 +178,9 @@ impl Drop for Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::mock::MockJavaScriptEngine;
     use javryn_core::{RuntimeConfig, ScriptMetadata};
+    use std::io::Write;
     use std::path::PathBuf;
 
     fn test_config() -> RuntimeConfig {
@@ -188,9 +190,13 @@ mod tests {
             .unwrap()
     }
 
-    fn test_script() -> Script {
-        let meta = ScriptMetadata::new(42, None);
-        Script::new(PathBuf::from("/test/app.js"), meta)
+    fn test_script(dir: &tempfile::TempDir) -> Script {
+        let path = dir.path().join("app.js");
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(b"console.log('test');").unwrap();
+
+        let meta = ScriptMetadata::new(20, None);
+        Script::new(path, meta)
     }
 
     #[test]
@@ -202,10 +208,14 @@ mod tests {
 
     #[test]
     fn run_lifecycle() {
-        let config = test_config();
-        let mut runtime = Runtime::new(config).unwrap();
-        let script = test_script();
+        let dir = tempfile::tempdir().unwrap();
+        let script = test_script(&dir);
+        let config = RuntimeConfig::builder()
+            .script_path(script.path().to_path_buf())
+            .build()
+            .unwrap();
 
+        let mut runtime = Runtime::new(config).unwrap();
         let result = runtime.run(&script);
         assert!(result.is_ok());
 
@@ -214,26 +224,48 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_is_idempotent() {
-        let config = test_config();
-        let mut runtime = Runtime::new(config).unwrap();
-        let script = test_script();
+    fn run_lifecycle_with_mock_engine() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = test_script(&dir);
+        let config = RuntimeConfig::builder()
+            .script_path(script.path().to_path_buf())
+            .build()
+            .unwrap();
 
+        let mock_engine = Box::new(MockJavaScriptEngine::new());
+        let mut runtime = Runtime::with_engine(config, mock_engine).unwrap();
+        let result = runtime.run(&script);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn shutdown_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = test_script(&dir);
+        let config = RuntimeConfig::builder()
+            .script_path(script.path().to_path_buf())
+            .build()
+            .unwrap();
+
+        let mut runtime = Runtime::new(config).unwrap();
         runtime.run(&script).unwrap();
 
         assert!(runtime.shutdown().is_ok());
-        assert!(runtime.shutdown().is_ok()); // Second call should also succeed.
+        assert!(runtime.shutdown().is_ok());
     }
 
     #[test]
     fn double_run_fails() {
-        let config = test_config();
-        let mut runtime = Runtime::new(config).unwrap();
-        let script = test_script();
+        let dir = tempfile::tempdir().unwrap();
+        let script = test_script(&dir);
+        let config = RuntimeConfig::builder()
+            .script_path(script.path().to_path_buf())
+            .build()
+            .unwrap();
 
+        let mut runtime = Runtime::new(config).unwrap();
         runtime.run(&script).unwrap();
 
-        // Second run should fail because already initialized.
         let result = runtime.run(&script);
         assert!(result.is_err());
         assert!(matches!(
@@ -254,11 +286,15 @@ mod tests {
 
     #[test]
     fn drop_without_shutdown_is_safe() {
-        let config = test_config();
+        let dir = tempfile::tempdir().unwrap();
+        let script = test_script(&dir);
+        let config = RuntimeConfig::builder()
+            .script_path(script.path().to_path_buf())
+            .build()
+            .unwrap();
+
         let mut runtime = Runtime::new(config).unwrap();
-        let script = test_script();
         runtime.run(&script).unwrap();
-        // Intentionally drop without calling shutdown.
         drop(runtime);
     }
 }

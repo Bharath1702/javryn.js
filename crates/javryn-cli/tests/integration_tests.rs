@@ -242,12 +242,43 @@ fn unreadable_file_fails() {
 fn success_returns_exit_code_0() {
     let dir = tempfile::tempdir().unwrap();
     let script = dir.path().join("ok.js");
-    std::fs::write(&script, "// ok").unwrap();
+    std::fs::write(&script, "console.log('Execution OK');").unwrap();
 
-    javryn().arg(&script).assert().code(0);
+    javryn()
+        .arg(&script)
+        .assert()
+        .code(0)
+        .stdout(predicate::str::contains("Execution OK"));
 }
 
 #[test]
 fn missing_file_returns_exit_code_2() {
     javryn().arg("ghost_file_99999.js").assert().code(2);
+}
+
+#[test]
+fn javascript_syntax_error_fails_with_exit_code_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("syntax.js");
+    std::fs::write(&script, "const = ;").unwrap();
+
+    javryn()
+        .arg(&script)
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("JavaScript syntax error"));
+}
+
+#[test]
+fn javascript_runtime_exception_fails_with_exit_code_5() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("exception.js");
+    std::fs::write(&script, "throw new Error('Uncaught test error');").unwrap();
+
+    javryn()
+        .arg(&script)
+        .assert()
+        .code(5)
+        .stderr(predicate::str::contains("JavaScript execution error"))
+        .stderr(predicate::str::contains("Uncaught test error"));
 }

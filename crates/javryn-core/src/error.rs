@@ -69,6 +69,81 @@ pub enum RuntimeError {
         message: String,
     },
 
+    /// An error occurred while initializing the JavaScript engine.
+    #[error("engine initialization failed\n\n  {message}")]
+    EngineInitialization {
+        /// Description of the engine initialization failure.
+        message: String,
+    },
+
+    /// A JavaScript syntax error occurred during script parsing.
+    #[error("JavaScript syntax error\n\n  File: {}\n  Reason: {reason}", path.display())]
+    JavaScriptSyntax {
+        /// Path to the script with syntax errors.
+        path: PathBuf,
+        /// Details of the syntax error.
+        reason: String,
+    },
+
+    /// An unhandled JavaScript exception occurred during script execution.
+    #[error("JavaScript execution error\n\n  File: {}\n  Error: {error_type}\n  Message: {message}\n{}", path.display(), stack.as_deref().unwrap_or(""))]
+    JavaScriptExecution {
+        /// Path to the script that threw an exception.
+        path: PathBuf,
+        /// Type/Name of the exception (e.g., "TypeError", "Error").
+        error_type: String,
+        /// Exception message.
+        message: String,
+        /// Stack trace if available.
+        stack: Option<String>,
+    },
+
+    /// An error occurred during worker creation.
+    #[error("worker creation failed\n\n  {message}")]
+    WorkerCreation {
+        /// Description of the worker creation failure.
+        message: String,
+    },
+
+    /// An error occurred during worker initialization.
+    #[error("worker initialization failed\n\n  {message}")]
+    WorkerInitialization {
+        /// Description of worker initialization failure.
+        message: String,
+    },
+
+    /// An error occurred during worker communication.
+    #[error("worker communication error\n\n  {message}")]
+    WorkerCommunication {
+        /// Description of communication failure.
+        message: String,
+    },
+
+    /// An error occurred during message serialization/deserialization.
+    #[error("worker serialization error\n\n  {message}")]
+    WorkerSerialization {
+        /// Description of serialization failure.
+        message: String,
+    },
+
+    /// An error occurred during worker script execution.
+    #[error("worker execution error\n\n  Worker ID: {worker_id}\n  Message: {message}")]
+    WorkerExecution {
+        /// Unique ID of the worker thread.
+        worker_id: u64,
+        /// Execution error message.
+        message: String,
+    },
+
+    /// A worker encountered a fatal failure or panic.
+    #[error("worker failure\n\n  Worker ID: {worker_id}\n  Message: {message}")]
+    WorkerFailed {
+        /// Unique ID of the worker thread.
+        worker_id: u64,
+        /// Failure details.
+        message: String,
+    },
+
     /// An error occurred during runtime execution.
     #[error("runtime error\n\n  {message}")]
     Runtime {
@@ -98,15 +173,24 @@ impl RuntimeError {
             RuntimeError::ScriptNotFound { .. }
             | RuntimeError::ScriptIsDirectory { .. }
             | RuntimeError::ScriptUnreadable { .. }
-            | RuntimeError::InvalidExtension { .. } => crate::ExitCode::InvalidInput,
+            | RuntimeError::InvalidExtension { .. }
+            | RuntimeError::JavaScriptSyntax { .. } => crate::ExitCode::InvalidInput,
 
             RuntimeError::Io { .. } => crate::ExitCode::InvalidInput,
 
             RuntimeError::Configuration { .. } => crate::ExitCode::ConfigurationFailure,
 
-            RuntimeError::Initialization { .. } => crate::ExitCode::InitializationFailure,
+            RuntimeError::Initialization { .. }
+            | RuntimeError::EngineInitialization { .. }
+            | RuntimeError::WorkerCreation { .. }
+            | RuntimeError::WorkerInitialization { .. } => crate::ExitCode::InitializationFailure,
 
-            RuntimeError::Runtime { .. } => crate::ExitCode::RuntimeFailure,
+            RuntimeError::Runtime { .. }
+            | RuntimeError::JavaScriptExecution { .. }
+            | RuntimeError::WorkerCommunication { .. }
+            | RuntimeError::WorkerSerialization { .. }
+            | RuntimeError::WorkerExecution { .. }
+            | RuntimeError::WorkerFailed { .. } => crate::ExitCode::RuntimeFailure,
 
             RuntimeError::Shutdown { .. } => crate::ExitCode::ShutdownFailure,
 

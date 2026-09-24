@@ -9,6 +9,7 @@ description = "Runtime lifecycle, script validation, and execution context for J
 [dependencies]
 javryn-core = { workspace = true }
 tracing = { workspace = true }
+boa_engine = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

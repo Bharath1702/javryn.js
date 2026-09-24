@@ -2,34 +2,23 @@
 
 **A high-performance, parallel JavaScript runtime.**
 
-> ⚠️ **Javryn V0.1 is a runtime foundation and does not execute JavaScript yet.**
-> JavaScript engine integration is planned for V0.2.
+## Current Status: V0.4 — Independent JavaScript Workers
 
-## What is Javryn?
+Javryn V0.4 introduces multi-context JavaScript execution with independent worker threads, isolated VM contexts, message passing (`Worker`, `postMessage`, `onmessage`), owned data serialization (`JsMessage`), and failure isolation.
 
-Javryn is a JavaScript runtime designed for high-performance, parallel execution across multiple CPU cores. It uses an intelligent scheduler and worker architecture to automatically distribute work.
+```bash
+javryn examples/worker-message.js
+# Output:
+# result: 42
+```
 
-**Current Status: V0.1 — Runtime Foundation**
+## Features in V0.4
 
-V0.1 establishes the core runtime infrastructure:
-- CLI argument parsing
-- Script validation and metadata extraction
-- Runtime lifecycle management
-- Structured error handling with documented exit codes
-- Cross-platform Ctrl+C handling
-- Structured logging/diagnostics
-
-## V0.1 Limitations
-
-V0.1 does **not** include:
-- JavaScript execution
-- Module loading
-- Async runtime
-- Worker threads
-- Network APIs
-- Package management
-
-These will be added in future versions (see [Roadmap](docs/ROADMAP.md)).
+- **Worker Architecture**: Independent OS threads (`std::thread`) with dedicated `boa_engine::Context` per worker.
+- **Message Passing**: Bi-directional message channels (`postMessage`, `onmessage`, `onerror`).
+- **Data Serialization**: `JsMessage` owned type mapping numbers, strings, booleans, arrays, and objects.
+- **Isolation**: Isolated JS global scope, VM heap, event loop, timer queue, and exception handling.
+- **Graceful Lifecycle & Shutdown**: Deterministic thread joining (`terminate()`) without detached background threads or memory leaks.
 
 ## Installation
 
@@ -40,73 +29,48 @@ These will be added in future versions (see [Roadmap](docs/ROADMAP.md)).
 git clone https://github.com/javryn/javryn.git
 cd javryn
 
-# Build in release mode
+# Build release binary
 cargo build --release
 
-# The binary is at target/release/javryn (or javryn.exe on Windows)
+# Run a worker script
+./target/release/javryn examples/worker-message.js
 ```
 
-### Requirements
-
-- Rust 1.85+ (2024 edition)
-- Cargo
-
-## Usage
+## Usage Examples
 
 ```bash
-# Show help
-javryn --help
+# Basic Worker Creation
+javryn examples/worker-basic.js
 
-# Show version
-javryn --version
+# Worker Message Passing
+javryn examples/worker-message.js
 
-# Run a script (V0.1: validates but does not execute)
-javryn app.js
-
-# Run with debug logging
-javryn --debug app.js
-
-# Run with verbose output
-javryn --verbose app.js
-
-# Run in quiet mode (errors only)
-javryn --quiet app.js
+# Independent Worker CPU Computations
+javryn examples/worker-cpu.js
 ```
 
-### CLI Options
+### `examples/worker-message.js`
+```javascript
+const worker = new Worker("./examples/workers/message.js");
 
-| Option | Description |
-|--------|-------------|
-| `<SCRIPT>` | Path to the JavaScript file (.js or .mjs) |
-| `--debug` | Enable debug-level diagnostic logging |
-| `--verbose` | Enable verbose informational output |
-| `--quiet` | Suppress all non-error output |
-| `--version` | Print version information |
-| `--help` | Print help information |
+worker.onmessage = (event) => {
+    console.log("result:", event.data);
+};
 
-### Exit Codes
+worker.postMessage(21);
+```
+
+## Exit Codes
 
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
 | 1 | Generic runtime failure |
-| 2 | Invalid input (missing/invalid script, bad arguments) |
+| 2 | Invalid input / JavaScript syntax error |
 | 3 | Configuration failure |
-| 4 | Initialization failure |
-| 5 | Runtime execution failure |
+| 4 | Engine initialization failure |
+| 5 | JavaScript execution error / unhandled exception |
 | 6 | Shutdown failure |
-
-## Architecture
-
-```
-javryn-cli          → CLI parsing, user output, exit codes
-  ↓
-javryn-runtime      → Lifecycle, validation, execution context
-  ↓
-javryn-core         → Shared types, errors, configuration
-```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full details.
 
 ## Development
 
@@ -114,57 +78,24 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full details.
 # Check compilation
 cargo check --workspace
 
-# Run all tests
+# Run all unit, integration, & compatibility tests
 cargo test --workspace
 
-# Run with formatting check
+# Check formatting
 cargo fmt --all -- --check
 
 # Run Clippy lints
 cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-# Build release
-cargo build --release
-```
-
-### Project Structure
-
-```
-javryn/
-├── Cargo.toml              # Workspace root
-├── crates/
-│   ├── javryn-cli/         # Binary crate (CLI entry point)
-│   ├── javryn-runtime/     # Runtime lifecycle library
-│   └── javryn-core/        # Shared domain types
-├── examples/               # Example scripts
-├── docs/                   # Architecture documentation
-└── tests/                  # Integration tests
-```
-
-## Testing
-
-```bash
-# Run all tests (unit + integration)
-cargo test --workspace
-
-# Run only unit tests
-cargo test --workspace --lib
-
-# Run only integration tests
-cargo test --workspace --test '*'
-
-# Run a specific test
-cargo test --workspace test_name
 ```
 
 ## Roadmap
 
 | Version | Focus |
 |---------|-------|
-| V0.1 | Runtime Foundation ← **current** |
-| V0.2 | JavaScript Engine Integration |
-| V0.3 | Async Runtime |
-| V0.4 | Worker Threads |
+| V0.1 | Runtime Foundation ✅ |
+| V0.2 | JavaScript Engine Integration ✅ |
+| V0.3 | Async Runtime & Event Loop ✅ |
+| V0.4 | Independent Workers ✅ ← **current** |
 | V0.5 | Explicit Parallelism |
 | V0.6 | Memory Management |
 | V0.7 | Scheduler |

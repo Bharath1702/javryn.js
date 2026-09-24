@@ -21,6 +21,7 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 ctrlc = "3"
+boa_engine = "0.20"
 
 # Dev dependencies
 assert_cmd = "2"
