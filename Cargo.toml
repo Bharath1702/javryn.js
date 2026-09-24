@@ -1,0 +1,28 @@
+[workspace]
+members = ["crates/javryn-cli", "crates/javryn-runtime", "crates/javryn-core"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Javryn Contributors"]
+license = "MIT"
+description = "A high-performance, parallel JavaScript runtime foundation"
+repository = "https://github.com/javryn/javryn"
+
+[workspace.dependencies]
+# Internal crates
+javryn-core = { path = "crates/javryn-core" }
+javryn-runtime = { path = "crates/javryn-runtime" }
+
+# External dependencies
+clap = { version = "4", features = ["derive"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+ctrlc = "3"
+
+# Dev dependencies
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
