@@ -690,4 +690,42 @@ mod tests {
 
         assert_eq!(total_submitted, 250);
     }
+
+    // ─── RELEASE GATE V1.0: 1,000-CYCLE ENDURANCE VERIFICATION ───
+    #[test]
+    fn release_gate_v1_1000_cycle_endurance() {
+        let mut tm = TaskManager::new();
+        tm.configure(4, 1000);
+
+        let mut total_submitted = 0usize;
+
+        for cycle in 1..=1000 {
+            let mut ctx = boa_engine::Context::default();
+            let resolve = ctx
+                .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .clone();
+            let reject = ctx
+                .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .clone();
+
+            let items = vec![JsMessage::Number(cycle as f64)];
+            let op_id = tm
+                .submit_map_operation("x => x * 2".to_string(), items, resolve, reject, &mut ctx)
+                .expect("submit op");
+            total_submitted += 1;
+
+            tm.cancel_operation(op_id, &mut ctx);
+
+            let diag = tm.diagnostics();
+            assert_eq!(diag.active_operations, 0);
+        }
+
+        assert_eq!(total_submitted, 1000);
+    }
 }

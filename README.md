@@ -2,9 +2,9 @@
 
 **A high-performance, parallel JavaScript runtime.**
 
-## Current Status: V0.9 — Production Hardening
+## Current Status: V1.0 — Production Release
 
-Javryn V0.9 transforms the runtime into a robust, observable, and recoverable execution environment for production workloads with configurable resource limits, timed graceful shutdown, worker failure isolation, and operational diagnostics.
+Javryn V1.0 is a production-grade, parallel JavaScript runtime built in Rust with explicit and automatic CPU multi-threading, intelligent load-aware task scheduling, bounded resource backpressure, worker thread isolation, and operational diagnostics.
 
 ```bash
 javryn --diagnostics --max-workers 4 examples/parallel-map.js

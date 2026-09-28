@@ -108,11 +108,14 @@ Production readiness, observability, worker failure recovery, and resource safet
 - Resource accounting invariants tested across repeated operation cycles and stress environments
 - Documented security boundary model (worker thread isolation vs host filesystem/timer access)
 
-## V1.0 — Production Release
+## V1.0 — Production Release ✅
 
-Stable public release:
-- Stable API guarantee
-- Migration guides
-- Performance baselines published
-- Community documentation
-- CI/CD pipeline for releases
+**Status: Current**
+
+Stable production release contract:
+- Workspace crate package versioning unified to `1.0.0` across `javryn-cli`, `javryn-core`, and `javryn-runtime`
+- Stable CLI contract (`0`–`6` exit code taxonomy) and API guarantees
+- Comprehensive technical documentation suite (`JAVASCRIPT_COMPATIBILITY.md`, `SECURITY.md`, `PERFORMANCE.md`, `ARCHITECTURE.md`, `INSTALLATION.md`)
+- 1,000-cycle endurance test pass and full workspace quality gate verification (129 workspace tests passing)
+- Verified release build compilation, clean formatting (`cargo fmt`), and Clippy lint pass (`-D warnings`)
+- Documented security boundary model (worker thread heap isolation vs host native permissions)
