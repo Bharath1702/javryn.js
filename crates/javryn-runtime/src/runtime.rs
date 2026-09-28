@@ -116,6 +116,7 @@ impl Runtime {
         }
 
         tracing::debug!("initializing runtime and engine");
+        crate::autopar::set_auto_parallel_enabled(self.config.auto_parallel());
         self.engine.initialize(self.config.mode())?;
 
         self.initialized = true;

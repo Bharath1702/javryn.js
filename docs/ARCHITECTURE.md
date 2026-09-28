@@ -148,3 +148,45 @@ User executes javryn script.js
 3. **Scheduler (`Scheduler`)**: Determines task selection (`select_task`), worker assignment (`select_worker`), priority policy (`SchedulingPolicy`), starvation prevention (aging boost), and queue latency metrics collection.
 4. **Worker Manager (`WorkerManager`)**: Manages thread pool spawning, thread health, message posting, and thread recovery (`handle_worker_failure`).
 5. **Isolated Workers**: Worker threads running isolated Boa engine contexts processing items in isolation and returning completed results via MPSC response channels.
+
+## Automatic Parallelization Architecture (V0.8)
+
+```text
+                    Javryn Runtime
+                          │
+                 JavaScript Engine (Boa)
+                          │
+              Automatic Parallelization Pass
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+        Static Analysis         Safety Analysis
+              │                       │
+              └───────────┬───────────┘
+                          │
+              Parallelization Decision
+                /                  \
+               /                    \
+          [ SAFE ]              [ UNSAFE ]
+             │                      │
+             ▼                      ▼
+      Chunk Planner            Sequential JS
+             │                  Fallback
+             ▼                      │
+        TaskManager                 │
+             │                      │
+         Scheduler                  │
+             │                      │
+       WorkerManager                │
+             │                      │
+      ┌──────┼──────┐               │
+      ▼      ▼      ▼               │
+     W1     W2     WN ──────────────┘
+```
+
+### Automatic Subsystem Responsibilities
+
+1. **Static Analyzer (`StaticAnalyzer`)**: Inspects statement and expression structures, calculating iteration read/write sets ($R_i \cap W_j$) and screening out mutations or side effects.
+2. **Safety Inspector**: Produces `ParallelizationDecision::Parallel` or `ParallelizationDecision::Sequential(Reason)`.
+3. **Chunk Planner (`ChunkPlanner`)**: Partitions large parallel loops into dynamic chunks.
+4. **Scheduler Integration**: Dispatches candidate task chunks through `TaskManager` and `Scheduler` without bypassing V0.7 worker management or diagnostics.

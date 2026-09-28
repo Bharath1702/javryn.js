@@ -19,6 +19,9 @@ pub struct RuntimeConfig {
 
     /// The logging/diagnostic mode for this runtime session.
     mode: RuntimeMode,
+
+    /// Whether automatic AST parallelization mode is enabled.
+    auto_parallel: bool,
 }
 
 impl RuntimeConfig {
@@ -35,6 +38,11 @@ impl RuntimeConfig {
     /// Returns the runtime mode (normal, debug, verbose, quiet).
     pub fn mode(&self) -> RuntimeMode {
         self.mode
+    }
+
+    /// Returns `true` if automatic parallelization mode is active.
+    pub fn auto_parallel(&self) -> bool {
+        self.auto_parallel
     }
 
     /// Returns `true` if debug mode is enabled.
@@ -61,6 +69,7 @@ impl RuntimeConfig {
 pub struct RuntimeConfigBuilder {
     script_path: Option<PathBuf>,
     mode: Option<RuntimeMode>,
+    auto_parallel: bool,
 }
 
 impl RuntimeConfigBuilder {
@@ -76,6 +85,12 @@ impl RuntimeConfigBuilder {
         self
     }
 
+    /// Sets whether automatic parallelization mode is active.
+    pub fn auto_parallel(mut self, active: bool) -> Self {
+        self.auto_parallel = active;
+        self
+    }
+
     /// Builds the [`RuntimeConfig`], returning an error if required fields are missing.
     pub fn build(self) -> Result<RuntimeConfig, crate::RuntimeError> {
         let script_path = self.script_path.ok_or(crate::RuntimeError::Configuration {
@@ -85,6 +100,7 @@ impl RuntimeConfigBuilder {
         Ok(RuntimeConfig {
             script_path,
             mode: self.mode.unwrap_or(RuntimeMode::Normal),
+            auto_parallel: self.auto_parallel,
         })
     }
 }

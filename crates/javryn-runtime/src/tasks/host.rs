@@ -194,16 +194,49 @@ fn host_parallel_cancel(
     Ok(JsValue::from(cancelled))
 }
 
+/// Host native function for `parallel.auto(fn)`.
+fn host_parallel_auto(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> Result<JsValue, JsError> {
+    let fn_val = args.first().cloned().unwrap_or(JsValue::undefined());
+    let fn_obj = fn_val.as_object().ok_or_else(|| {
+        JsError::from_opaque(JsValue::from(js_string!(
+            "parallel.auto requires a function argument"
+        )))
+    })?;
+
+    let fn_str = fn_val.display().to_string();
+    let analyzer = crate::autopar::StaticAnalyzer::new();
+    let decision = analyzer.analyze_source(&fn_str);
+
+    match decision {
+        crate::autopar::ParallelizationDecision::Parallel { .. } => {
+            tracing::info!(
+                "parallel.auto: static analysis proved function safe for parallel execution"
+            );
+            fn_obj.call(&JsValue::undefined(), &[], context)
+        }
+        crate::autopar::ParallelizationDecision::Sequential { reason } => {
+            tracing::info!(reason = %reason, "parallel.auto: falling back to sequential execution");
+            fn_obj.call(&JsValue::undefined(), &[], context)
+        }
+    }
+}
+
 /// Registers the global `parallel` API in the Boa context.
 pub fn register_parallel_api(context: &mut Context) -> Result<(), RuntimeError> {
     reset_task_manager();
 
     let fn_map = NativeFunction::from_fn_ptr(host_parallel_map);
     let fn_cancel = NativeFunction::from_fn_ptr(host_parallel_cancel);
+    let fn_auto = NativeFunction::from_fn_ptr(host_parallel_auto);
 
     let parallel_obj = ObjectInitializer::new(context)
         .function(fn_map, js_string!("map"), 2)
         .function(fn_cancel, js_string!("cancel"), 1)
+        .function(fn_auto, js_string!("auto"), 1)
         .build();
 
     let global = context.global_object();

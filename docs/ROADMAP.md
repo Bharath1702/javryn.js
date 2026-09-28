@@ -85,13 +85,16 @@ Intelligent work distribution and load-aware scheduling:
 - Comprehensive latency diagnostics (`queue_wait_avg_ms`, `queue_wait_max_ms`, `starvation_boosts`) in runtime diagnostics
 - Preserves V0.6 guarantees: backpressure, explicit cancellation, worker crash recovery, and deterministic indexed result ordering
 
-## V0.8 — Automatic Parallelization (Future)
+## V0.8 — Automatic Parallelization ✅
 
-Transparent parallelism:
-- Automatic detection of parallelizable operations
-- Data dependency analysis
-- Parallel collection operations
-- Speculative execution
+**Status: Current**
+
+Transparent parallelism for provably-safe JavaScript workloads:
+- Static safety inspector and dependency analyzer (`StaticAnalyzer`) inspecting iteration read/write sets
+- Clean sequential fallback guarantee for code containing mutations, side-effects, or uncertain dependencies
+- Dynamic chunk sizing (`ChunkPlanner`) optimizing task allocation for large workloads
+- `--auto-parallel` CLI flag and `parallel.auto(fn)` opt-in JavaScript host API
+- Full reuse of V0.7 Intelligent Scheduler, `TaskManager`, and isolated thread pool
 
 ## V0.9 — Production Hardening
 

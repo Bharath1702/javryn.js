@@ -11,6 +11,7 @@
 //! It does **not** contain CLI logic or user-facing output formatting.
 
 pub mod async_runtime;
+pub mod autopar;
 pub mod engine;
 pub mod runtime;
 pub mod scheduler;
@@ -19,6 +20,7 @@ pub mod tasks;
 pub mod workers;
 
 pub use async_runtime::{EventLoop, TimerId, TimerQueue};
+pub use autopar::{ParallelizationDecision, StaticAnalyzer, is_auto_parallel_enabled};
 pub use engine::boa::BoaEngineAdapter;
 pub use engine::{ExecutionResult, JavaScriptEngine};
 pub use runtime::Runtime;

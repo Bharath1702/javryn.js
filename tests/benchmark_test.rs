@@ -69,3 +69,12 @@ fn test_benchmark_workload_d_uneven_scheduler_tasks() {
     println!("\n--- BENCHMARK WORKLOAD D (V0.7 SCHEDULER UNEVEN TASKS) ---");
     println!("Total Elapsed: {} ms", elapsed_ms);
 }
+
+#[test]
+fn test_benchmark_workload_e_automatic_parallelization() {
+    let (success, stdout, elapsed_ms) = run_javryn_script("tests/javascript/parallel/auto_parallel_test.js");
+    assert!(success);
+    assert!(stdout.contains("AUTO_OPT_IN_ACTIVE:true"));
+    println!("\n--- BENCHMARK WORKLOAD E (V0.8 AUTOMATIC PARALLELIZATION) ---");
+    println!("Total Elapsed: {} ms", elapsed_ms);
+}

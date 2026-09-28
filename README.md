@@ -2,25 +2,21 @@
 
 **A high-performance, parallel JavaScript runtime.**
 
-## Current Status: V0.7 — Intelligent Scheduler
+## Current Status: V0.8 — Automatic Parallelization
 
-Javryn V0.7 upgrades the task dispatch architecture with a dedicated **Intelligent Scheduler**. The runtime features load-aware dynamic worker selection, task priority scheduling, aging starvation prevention, and queue latency diagnostics while preserving deterministic result ordering, cancellation, backpressure, and worker failure recovery.
+Javryn V0.8 introduces **Automatic Parallelization**, capable of identifying a restricted, provably-safe subset of sequential JavaScript workloads and automatically executing them in parallel across independent worker threads using the underlying V0.7 Intelligent Scheduler. Any code containing side effects, mutations, or uncertain dependencies cleanly falls back to native sequential execution.
 
 ```bash
-javryn examples/parallel-map.js
-# Output:
-# Parallel map result: [ 1, 4, 9, 16 ]
+javryn --auto-parallel examples/auto-parallel-basic.js
 ```
 
-## Features in V0.7
+## Features in V0.8
 
-- **Dedicated Intelligent Scheduler**: Decoupled `Scheduler` module handling task selection (`select_task`) and worker placement (`select_worker`).
-- **Dynamic Load-Aware Dispatching**: `LoadAwarePolicy` tracks worker thread active task load and busy duration to prevent idle workers during uneven workloads.
-- **Priority & Aging Starvation Prevention**: `TaskPriority` support with automated aging boosts for tasks queued over 500ms.
-- **Scheduler Metrics & Diagnostics**: Latency tracking (`queue_wait_avg_ms`, `queue_wait_max_ms`), dispatch counts, starvation boosts, and worker utilization metrics in `TaskManagerDiagnostics`.
-- **Explicit Parallel API**: `parallel.map(items, callback)` returning a native JavaScript `Promise`.
-- **Concurrency & Backpressure Control**: Configurable worker pool and task queue limits (`ConcurrencyLimitExceeded`).
-- **Deterministic Result Aggregation**: Array indexing preserves result order regardless of non-deterministic thread completion order.
+- **Static Safety & Dependency Analysis**: `StaticAnalyzer` inspects expressions and loops to guarantee iteration independence before enabling parallel execution.
+- **Sequential Fallback Guarantee**: Code containing accumulator operations (`+=`), array mutations (`push`), `console.log`, or global state mutations falls back to sequential execution without throwing errors.
+- **Dynamic Chunk Sizing**: `ChunkPlanner` automatically partitions large loops into balanced task chunks based on physical core counts.
+- **Explicit Opt-in API & CLI Flag**: `parallel.auto(fn)` JavaScript API and `--auto-parallel` CLI flag.
+- **Dedicated Intelligent Scheduler Reuse**: Integrates directly into `TaskManager` and `Scheduler` without duplicating worker infrastructure.
 
 ## Installation
 

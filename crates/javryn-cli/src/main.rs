@@ -48,6 +48,10 @@ struct Cli {
     /// Suppress all non-error output.
     #[arg(long, conflicts_with_all = &["debug", "verbose"])]
     quiet: bool,
+
+    /// Enable automatic AST parallelization mode.
+    #[arg(long = "auto-parallel")]
+    auto_parallel: bool,
 }
 
 impl Cli {
@@ -95,6 +99,7 @@ fn run(cli: &Cli, interrupted: &AtomicBool) -> Result<(), RuntimeError> {
     let config = RuntimeConfig::builder()
         .script_path(cli.script.clone())
         .mode(cli.runtime_mode())
+        .auto_parallel(cli.auto_parallel)
         .build()?;
 
     tracing::debug!(mode = %config.mode(), script = %config.script_path().display(), "configuration built");

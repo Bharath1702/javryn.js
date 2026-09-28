@@ -160,6 +160,16 @@ fn test_scheduler_stress_and_no_duplicate_execution() {
     assert!(stdout.contains("RECOVERY_AFTER_CANCEL_RESULT:[5,10]"));
 }
 
+#[test]
+fn test_automatic_parallelization_and_fallback() {
+    let (success, stdout, _stderr) = run_javryn_script("tests/javascript/parallel/auto_parallel_test.js");
+    assert!(success);
+    assert!(stdout.contains("AUTO_OPT_IN_ACTIVE:true"));
+    assert!(stdout.contains("AUTO_FALLBACK_SEQUENTIAL:true"));
+    assert!(stdout.contains("ACCUMULATOR_FALLBACK_SUM:10"));
+    assert!(stdout.contains("DETERMINISM_MATCH:true"));
+}
+
 
 
 
