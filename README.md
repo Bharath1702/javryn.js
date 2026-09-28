@@ -96,11 +96,11 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 | V0.3 | Async Runtime & Event Loop ✅ |
 | V0.4 | Independent Workers ✅ |
 | V0.5 | Explicit Parallelism ✅ |
-| V0.6 | Memory + Concurrency ✅ ← **current** |
-| V0.7 | Intelligent Scheduler |
-| V0.8 | Automatic Parallelization |
-| V0.9 | Production Hardening |
-| V1.0 | Production Release |
+| V0.6 | Memory + Concurrency ✅ |
+| V0.7 | Intelligent Scheduler ✅ |
+| V0.8 | Automatic Parallelization ✅ |
+| V0.9 | Production Hardening ✅ |
+| V1.0 | Production Release ✅ ← **current** |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for details.
 
