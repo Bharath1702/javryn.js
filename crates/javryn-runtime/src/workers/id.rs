@@ -21,3 +21,23 @@ impl fmt::Display for RequestId {
         write!(f, "Req#{}", self.0)
     }
 }
+
+/// Unique identifier for a parallel execution task.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TaskId(pub u64);
+
+impl fmt::Display for TaskId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Task#{}", self.0)
+    }
+}
+
+/// Unique identifier for a parallel operation (e.g. parallel.map()).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OperationId(pub u64);
+
+impl fmt::Display for OperationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Op#{}", self.0)
+    }
+}

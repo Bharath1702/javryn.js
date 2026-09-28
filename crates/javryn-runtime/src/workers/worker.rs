@@ -138,6 +138,34 @@ impl WorkerHandle {
             })
     }
 
+    /// Sends a parallel task execution payload to the worker thread.
+    pub fn post_task(
+        &self,
+        task_id: super::id::TaskId,
+        fn_source: String,
+        arg: JsMessage,
+    ) -> Result<(), RuntimeError> {
+        if !self.is_running() {
+            return Err(RuntimeError::WorkerCommunication {
+                message: format!(
+                    "cannot post task to worker {} in state {}",
+                    self.id,
+                    self.state_code()
+                ),
+            });
+        }
+
+        self.sender
+            .send(WorkerMessage::ExecuteTask {
+                task_id,
+                fn_source,
+                arg,
+            })
+            .map_err(|e| RuntimeError::WorkerCommunication {
+                message: format!("failed to send task to worker: {e}"),
+            })
+    }
+
     /// Non-blocking check for responses from worker thread.
     pub fn try_recv(&self) -> Result<Option<WorkerResponse>, RuntimeError> {
         match self.receiver.try_recv() {
@@ -268,6 +296,30 @@ fn run_worker_thread(
                     });
                 }
             }
+            Ok(WorkerMessage::ExecuteTask {
+                task_id,
+                fn_source,
+                arg,
+            }) => {
+                let task_res = execute_task(&mut context, &fn_source, arg);
+                tracing::info!(worker_id = id.0, task_id = task_id.0, result = ?task_res, "execute_task result");
+                match task_res {
+                    Ok(data) => {
+                        let _ = sender.send(WorkerResponse::TaskCompleted {
+                            worker_id: id,
+                            task_id,
+                            data,
+                        });
+                    }
+                    Err(err_msg) => {
+                        let _ = sender.send(WorkerResponse::TaskFailed {
+                            worker_id: id,
+                            task_id,
+                            error: err_msg,
+                        });
+                    }
+                }
+            }
             Ok(WorkerMessage::PostMessage {
                 request_id: _,
                 data,
@@ -307,7 +359,10 @@ fn run_worker_thread(
             .is_some();
 
         if !has_worker_timers && !has_onmessage && initial_script.is_some() {
-            tracing::debug!(worker_id = id.0, "worker has no pending timers or message handlers: stopping");
+            tracing::debug!(
+                worker_id = id.0,
+                "worker has no pending timers or message handlers: stopping"
+            );
             break;
         }
     }
@@ -397,4 +452,32 @@ fn execute_worker_file(context: &mut Context, path: &Path) -> Result<(), Runtime
         })?;
 
     Ok(())
+}
+
+/// Helper to execute a parallel task callback source with argument inside worker context.
+fn execute_task(
+    context: &mut Context,
+    fn_source: &str,
+    arg: JsMessage,
+) -> Result<JsMessage, String> {
+    let arg_val = arg.to_js_value(context).map_err(|e| e.to_string())?;
+
+    let wrapped_source = format!("({fn_source})");
+    let fn_val = context
+        .eval(Source::from_bytes(wrapped_source.as_bytes()))
+        .map_err(|e| format!("Failed to compile task callback function: {e}"))?;
+
+    let obj = fn_val
+        .as_object()
+        .ok_or_else(|| "Task callback source is not a callable Function".to_string())?;
+
+    if !obj.is_callable() {
+        return Err("Task callback source is not a callable Function".to_string());
+    }
+
+    let ret_val = obj
+        .call(&JsValue::undefined(), &[arg_val], context)
+        .map_err(|e| e.to_string())?;
+
+    JsMessage::from_js_value(&ret_val, context).map_err(|e| e.to_string())
 }

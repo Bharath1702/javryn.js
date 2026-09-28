@@ -41,6 +41,7 @@ impl EventLoop {
             // Phase 1: Drain all pending Promise microtasks/job queue and dispatch worker responses
             context.run_jobs();
             crate::workers::dispatch_worker_responses(context)?;
+            context.run_jobs();
 
             // Phase 2: Fire ready timers
             let now = Instant::now();
@@ -63,12 +64,17 @@ impl EventLoop {
 
             // Phase 3: Check completion condition
             let has_timers = timer_queue.has_pending();
-            let has_workers = crate::workers::with_worker_manager(|m| !m.is_empty());
+            let has_tasks = crate::tasks::manager::with_task_manager(|m| m.has_pending());
+            let has_worker_objs = crate::workers::host::has_active_worker_objects();
 
-            if !has_timers && !has_workers {
-                tracing::debug!("event loop completed: no pending timers or active workers remain");
+            if !has_timers && !has_tasks && !has_worker_objs {
+                tracing::debug!(
+                    "event loop completed: no pending timers, tasks, or active worker objects remain"
+                );
                 break;
             }
+
+            let is_waiting_on_workers = has_tasks || has_worker_objs;
 
             // Phase 4: Non-blocking sleep until next deadline or brief poll for worker responses
             let sleep_duration = if let Some(deadline) = timer_queue.next_deadline() {
@@ -76,12 +82,12 @@ impl EventLoop {
                 if deadline > now {
                     deadline
                         .duration_since(now)
-                        .min(std::time::Duration::from_millis(10))
+                        .min(std::time::Duration::from_millis(1))
                 } else {
                     std::time::Duration::from_millis(0)
                 }
-            } else if has_workers {
-                std::time::Duration::from_millis(10) // Poll interval for worker responses when no timers active
+            } else if is_waiting_on_workers {
+                std::time::Duration::from_millis(1) // Poll interval for worker responses when no timers active
             } else {
                 std::time::Duration::from_millis(0)
             };

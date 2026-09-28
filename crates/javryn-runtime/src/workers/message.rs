@@ -8,7 +8,7 @@ use boa_engine::object::builtins::JsArray;
 use boa_engine::{Context, JsValue, js_string};
 use javryn_core::RuntimeError;
 
-use super::id::{RequestId, WorkerId};
+use super::id::{RequestId, TaskId, WorkerId};
 
 /// Thread-safe, serializable representation of a JavaScript value.
 ///
@@ -57,19 +57,20 @@ impl JsMessage {
             }
 
             if let Ok(js_array) = JsArray::from_object(obj.clone()) {
-                let length = js_array.length(context).map_err(|e| {
-                    RuntimeError::WorkerSerialization {
-                        message: format!("failed to read array length: {e}"),
-                    }
-                })?;
+                let length =
+                    js_array
+                        .length(context)
+                        .map_err(|e| RuntimeError::WorkerSerialization {
+                            message: format!("failed to read array length: {e}"),
+                        })?;
 
                 let mut list = Vec::with_capacity(length as usize);
                 for i in 0..length {
-                    let elem = js_array
-                        .get(i, context)
-                        .map_err(|e| RuntimeError::WorkerSerialization {
+                    let elem = js_array.get(i, context).map_err(|e| {
+                        RuntimeError::WorkerSerialization {
                             message: format!("failed to read array element index {i}: {e}"),
-                        })?;
+                        }
+                    })?;
                     list.push(Self::from_js_value(&elem, context)?);
                 }
                 return Ok(JsMessage::Array(list));
@@ -145,6 +146,15 @@ pub enum WorkerMessage {
         /// Absolute or relative script file path.
         script_path: PathBuf,
     },
+    /// Request worker to execute a parallel task (function source + input argument).
+    ExecuteTask {
+        /// Unique task identifier.
+        task_id: TaskId,
+        /// JS function source string.
+        fn_source: String,
+        /// Input argument payload.
+        arg: JsMessage,
+    },
     /// Deliver a message payload to the worker's global `onmessage` handler.
     PostMessage {
         /// Request handle ID.
@@ -163,6 +173,24 @@ pub enum WorkerResponse {
     Ready {
         /// ID of the started worker.
         worker_id: WorkerId,
+    },
+    /// Worker completed a parallel task execution successfully.
+    TaskCompleted {
+        /// ID of worker executing task.
+        worker_id: WorkerId,
+        /// Task identifier.
+        task_id: TaskId,
+        /// Result data payload.
+        data: JsMessage,
+    },
+    /// Worker encountered an error during task execution.
+    TaskFailed {
+        /// ID of worker executing task.
+        worker_id: WorkerId,
+        /// Task identifier.
+        task_id: TaskId,
+        /// Error message details.
+        error: String,
     },
     /// Worker script posted a message to the main thread / parent.
     PostMessage {

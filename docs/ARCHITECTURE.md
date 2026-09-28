@@ -86,22 +86,39 @@ User executes javryn script.js
        └─ Exception   ──► RuntimeError::JavaScriptExecution (Exit Code 5)
 ```
 
-## Future Worker Architecture (V0.4+)
+## Explicit Parallel Architecture (V0.5)
 
 ```text
-                 Javryn Runtime
-                       │
-                       ▼
-                  Scheduler (V0.7)
-                       │
-          ┌────────────┼────────────┐
-          ▼            ▼            ▼
-       Worker 1     Worker 2     Worker N
-          │            │            │
-        JS VM        JS VM        JS VM
-          │            │            │
-          └────────────┼────────────┘
-                       │
-                       ▼
-                   CPU Cores
+                         JAVRYN
+                           │
+              ┌────────────┴────────────┐
+              │                         │
+       Main JavaScript             Parallel API
+          Runtime                       │
+              │                    Task Manager
+              │                         │
+              │                    Worker Manager
+              │                         │
+              │              ┌──────────┼──────────┐
+              │              ▼          ▼          ▼
+              │           Worker 1  Worker 2  Worker N
+              │              │          │          │
+              │             Boa        Boa        Boa
+              │              │          │          │
+              │           EventLoop  EventLoop  EventLoop
+              │
+              └──────────── Worker Responses
+                              │
+                              ▼
+                         Main Event Loop
+                              │
+                              ▼
+                         Promise Result
 ```
+
+### Decoupled Subsystem Responsibilities
+
+1. **Parallel Host API (`parallel.map`)**: JavaScript host global exposed to main context. Serializes arguments/source and submits operation to `TaskManager`.
+2. **Task Manager (`TaskManager`)**: Manages `OperationId`, `TaskId`, input index mapping (`InputIndex`), task queueing, worker pool assignment, and deterministic ordered result assembly.
+3. **Worker Manager (`WorkerManager`)**: Manages the reusable pool of worker threads. Executes tasks by passing serialized callback source + argument payloads (`WorkerMessage::ExecuteTask`) to available workers.
+4. **Isolated Workers**: Dedicated worker threads running isolated Boa JavaScript contexts and event loops. Executed results (`WorkerResponse::TaskCompleted`) are dispatched asynchronously through the main thread event loop.

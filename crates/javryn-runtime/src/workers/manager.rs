@@ -65,6 +65,29 @@ impl WorkerManager {
         Ok(request_id)
     }
 
+    /// Sends a parallel task execution request to the target `worker_id`.
+    pub fn post_task(
+        &self,
+        worker_id: WorkerId,
+        task_id: super::id::TaskId,
+        fn_source: String,
+        arg: JsMessage,
+    ) -> Result<(), RuntimeError> {
+        let handle =
+            self.workers
+                .get(&worker_id)
+                .ok_or_else(|| RuntimeError::WorkerCommunication {
+                    message: format!("worker {worker_id} not found in WorkerManager"),
+                })?;
+
+        handle.post_task(task_id, fn_source, arg)
+    }
+
+    /// Returns a vector of active running worker IDs.
+    pub fn active_worker_ids(&self) -> Vec<WorkerId> {
+        self.workers.keys().copied().collect()
+    }
+
     /// Non-blocking check for responses from all managed worker threads.
     pub fn poll_responses(&mut self) -> Vec<WorkerResponse> {
         let mut responses = Vec::new();

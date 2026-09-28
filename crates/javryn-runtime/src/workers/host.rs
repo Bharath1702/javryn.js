@@ -21,6 +21,11 @@ pub fn reset_worker_objects() {
     WORKER_OBJECTS.with(|r| r.borrow_mut().clear());
 }
 
+/// Returns `true` if any JS `Worker` constructor instances are registered in the main thread.
+pub fn has_active_worker_objects() -> bool {
+    WORKER_OBJECTS.with(|r| !r.borrow().is_empty())
+}
+
 fn register_worker_object(id: WorkerId, obj: JsObject) {
     WORKER_OBJECTS.with(|r| r.borrow_mut().insert(id, obj));
 }
@@ -205,16 +210,30 @@ pub fn dispatch_worker_responses(context: &mut Context) -> Result<(), RuntimeErr
                         .build();
                     let _ = cb.call(&JsValue::undefined(), &[err_obj.into()], context);
                 }
+
+                crate::tasks::manager::with_task_manager(|m| {
+                    let _ = m.handle_worker_failure(worker_id, &error, context);
+                });
             }
             WorkerResponse::Stopped { worker_id } => {
                 WORKER_OBJECTS.with(|r| r.borrow_mut().remove(&worker_id));
                 with_worker_manager(|m| {
                     let _ = m.terminate_worker(worker_id);
                 });
+                crate::tasks::manager::with_task_manager(|m| {
+                    let _ = m.handle_worker_failure(worker_id, "Worker terminated", context);
+                });
             }
             WorkerResponse::Ready { .. } => {}
+            WorkerResponse::TaskCompleted { .. } | WorkerResponse::TaskFailed { .. } => {
+                crate::tasks::manager::with_task_manager(|m| {
+                    m.handle_task_response(resp, context)
+                })?;
+            }
         }
     }
+
+    crate::tasks::manager::with_task_manager(|m| m.dispatch_pending_tasks())?;
 
     Ok(())
 }

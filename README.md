@@ -2,23 +2,23 @@
 
 **A high-performance, parallel JavaScript runtime.**
 
-## Current Status: V0.4 — Independent JavaScript Workers
+## Current Status: V0.5 — Explicit Parallel JavaScript
 
-Javryn V0.4 introduces multi-context JavaScript execution with independent worker threads, isolated VM contexts, message passing (`Worker`, `postMessage`, `onmessage`), owned data serialization (`JsMessage`), and failure isolation.
+Javryn V0.5 introduces explicit CPU parallelism via `parallel.map()`, decoupling task management from worker lifecycle and distributing compute across a reusable worker pool.
 
 ```bash
-javryn examples/worker-message.js
+javryn examples/parallel-map.js
 # Output:
-# result: 42
+# Parallel map result: [ 1, 4, 9, 16 ]
 ```
 
-## Features in V0.4
+## Features in V0.5
 
-- **Worker Architecture**: Independent OS threads (`std::thread`) with dedicated `boa_engine::Context` per worker.
-- **Message Passing**: Bi-directional message channels (`postMessage`, `onmessage`, `onerror`).
-- **Data Serialization**: `JsMessage` owned type mapping numbers, strings, booleans, arrays, and objects.
-- **Isolation**: Isolated JS global scope, VM heap, event loop, timer queue, and exception handling.
-- **Graceful Lifecycle & Shutdown**: Deterministic thread joining (`terminate()`) without detached background threads or memory leaks.
+- **Explicit Parallel API**: `parallel.map(items, callback)` returning a native JavaScript `Promise`.
+- **Decoupled Task Manager**: `TaskManager` manages `TaskId`, `OperationId`, task queueing, and result ordering.
+- **Ordered Result Preservation**: Input-indexed array assembly guarantees deterministic result order.
+- **Worker Pool Reuse**: Spawns reusable background workers up to `available_parallelism()` without thread-per-task overhead.
+- **Non-Blocking Main Loop**: Main event loop processes timers and microtasks while parallel tasks run concurrently on worker threads.
 
 ## Installation
 
@@ -32,32 +32,33 @@ cd javryn
 # Build release binary
 cargo build --release
 
-# Run a worker script
-./target/release/javryn examples/worker-message.js
+# Run a parallel script
+./target/release/javryn examples/parallel-map.js
 ```
 
 ## Usage Examples
 
 ```bash
-# Basic Worker Creation
-javryn examples/worker-basic.js
+# Basic Parallel Map
+javryn examples/parallel-map.js
 
-# Worker Message Passing
-javryn examples/worker-message.js
+# CPU Parallel Workload
+javryn examples/parallel-cpu.js
 
-# Independent Worker CPU Computations
-javryn examples/worker-cpu.js
+# Error Propagation
+javryn examples/parallel-error.js
 ```
 
-### `examples/worker-message.js`
+### `examples/parallel-map.js`
 ```javascript
-const worker = new Worker("./examples/workers/message.js");
+const values = [1, 2, 3, 4];
 
-worker.onmessage = (event) => {
-    console.log("result:", event.data);
-};
+async function main() {
+    const results = await parallel.map(values, "x => x * x");
+    console.log("Parallel map result:", results);
+}
 
-worker.postMessage(21);
+main();
 ```
 
 ## Exit Codes
@@ -95,10 +96,10 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 | V0.1 | Runtime Foundation ✅ |
 | V0.2 | JavaScript Engine Integration ✅ |
 | V0.3 | Async Runtime & Event Loop ✅ |
-| V0.4 | Independent Workers ✅ ← **current** |
-| V0.5 | Explicit Parallelism |
-| V0.6 | Memory Management |
-| V0.7 | Scheduler |
+| V0.4 | Independent Workers ✅ |
+| V0.5 | Explicit Parallelism ✅ ← **current** |
+| V0.6 | Shared Memory & Atomics |
+| V0.7 | Intelligent Scheduler |
 | V0.8 | Automatic Parallelization |
 | V0.9 | Production Hardening |
 | V1.0 | Production Release |

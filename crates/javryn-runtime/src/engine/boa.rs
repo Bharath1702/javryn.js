@@ -69,13 +69,15 @@ impl JavaScriptEngine for BoaEngineAdapter {
         set_mode_atomic(mode);
         reset_timer_queue();
         crate::workers::reset_worker_manager();
+        crate::tasks::manager::reset_task_manager();
 
         let mut context = Context::default();
 
-        // Register host console object, timer APIs, and Worker constructor into JS global scope
+        // Register host console object, timer APIs, Worker constructor, and parallel API into JS global scope
         register_console(&mut context)?;
         register_timers(&mut context)?;
         crate::workers::register_worker_constructor(&mut context)?;
+        crate::tasks::register_parallel_api(&mut context)?;
 
         self.context = Some(context);
         tracing::debug!(mode = %mode, "Boa JavaScript engine initialized");
@@ -127,6 +129,7 @@ impl JavaScriptEngine for BoaEngineAdapter {
         tracing::debug!("shutting down Boa engine adapter");
         reset_timer_queue();
         crate::workers::reset_worker_manager();
+        crate::tasks::manager::reset_task_manager();
         self.context = None;
         Ok(())
     }
