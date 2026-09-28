@@ -2,9 +2,9 @@
 
 **A high-performance, parallel JavaScript runtime.**
 
-## Current Status: V0.5 — Explicit Parallel JavaScript
+## Current Status: V0.6 — Memory + Concurrency
 
-Javryn V0.5 introduces explicit CPU parallelism via `parallel.map()`, decoupling task management from worker lifecycle and distributing compute across a reusable worker pool.
+Javryn V0.6 strengthens worker and parallel task architecture under high concurrency pressure. It establishes explicit memory ownership boundaries, task/operation state machines, bounded task queue backpressure (`ConcurrencyLimitExceeded`), worker state isolation, and runtime resource accounting.
 
 ```bash
 javryn examples/parallel-map.js
@@ -12,12 +12,13 @@ javryn examples/parallel-map.js
 # Parallel map result: [ 1, 4, 9, 16 ]
 ```
 
-## Features in V0.5
+## Features in V0.6
 
 - **Explicit Parallel API**: `parallel.map(items, callback)` returning a native JavaScript `Promise`.
-- **Decoupled Task Manager**: `TaskManager` manages `TaskId`, `OperationId`, task queueing, and result ordering.
-- **Ordered Result Preservation**: Input-indexed array assembly guarantees deterministic result order.
-- **Worker Pool Reuse**: Spawns reusable background workers up to `available_parallelism()` without thread-per-task overhead.
+- **Task & Operation State Machines**: Strict state transitions (`TaskStatus` and `OperationStatus`) preventing double-resolution or illegal state changes.
+- **Bounded Concurrency & Backpressure**: Configurable `max_workers` and `max_queued_tasks` queue limits preventing unbounded memory growth.
+- **Worker Isolation & Recovery**: Strict cross-worker memory boundaries with zero shared JS VM state; full runtime recovery on worker panic.
+- **Resource Accounting & Diagnostics**: Real-time tracking of active operations, queued tasks, running tasks, and thread pool size.
 - **Non-Blocking Main Loop**: Main event loop processes timers and microtasks while parallel tasks run concurrently on worker threads.
 
 ## Installation
@@ -97,8 +98,8 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 | V0.2 | JavaScript Engine Integration ✅ |
 | V0.3 | Async Runtime & Event Loop ✅ |
 | V0.4 | Independent Workers ✅ |
-| V0.5 | Explicit Parallelism ✅ ← **current** |
-| V0.6 | Shared Memory & Atomics |
+| V0.5 | Explicit Parallelism ✅ |
+| V0.6 | Memory + Concurrency ✅ ← **current** |
 | V0.7 | Intelligent Scheduler |
 | V0.8 | Automatic Parallelization |
 | V0.9 | Production Hardening |

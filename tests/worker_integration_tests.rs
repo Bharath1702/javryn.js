@@ -69,3 +69,36 @@ fn test_worker_multiple_concurrent_instances() {
         manager.terminate_worker(id).expect("terminate worker");
     }
 }
+
+#[test]
+fn test_worker_failure_and_recovery() {
+    use boa_engine::Context;
+    use javryn_runtime::tasks::manager::with_task_manager;
+
+    let mut context = Context::default();
+    let mut manager = WorkerManager::new();
+    let w1 = manager.spawn_worker(None).expect("spawn w1");
+
+    with_task_manager(|tm| {
+        let diag_before = tm.diagnostics();
+        assert_eq!(diag_before.active_operations, 0);
+
+        // Simulate worker thread termination / panic failure handling
+        let res = tm.handle_worker_failure(w1, "Simulated worker panic failure", &mut context);
+        assert!(res.is_ok());
+
+        let diag_after = tm.diagnostics();
+        assert_eq!(diag_after.active_operations, 0);
+        assert_eq!(diag_after.queued_tasks, 0);
+        assert_eq!(diag_after.running_tasks, 0);
+    });
+
+    manager.terminate_worker(w1).expect("clean dead worker channel");
+    assert_eq!(manager.len(), 0);
+
+    // Verify worker manager can spawn new worker cleanly
+    let w2 = manager.spawn_worker(None).expect("spawn replacement worker");
+    assert_eq!(manager.len(), 1);
+    manager.terminate_worker(w2).expect("terminate replacement worker");
+}
+

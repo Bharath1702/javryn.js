@@ -53,21 +53,25 @@ Establishes multi-context worker architecture:
 - Worker thread lifecycle management (`WorkerManager`) with clean thread joins (`terminate()`)
 - Integration with main event loop to poll worker messages and process events
 
-## V0.5 — Explicit Parallelism
+## V0.5 — Explicit Parallel JavaScript ✅
 
-Enable user-controlled parallel execution:
-- SharedArrayBuffer
-- Atomics
-- Transferable objects
-- Structured clone algorithm
+Enable user-controlled explicit CPU-parallel execution:
+- Global `parallel.map(items, callback)` returning native JavaScript `Promise`
+- Decoupled `TaskManager` and `WorkerManager` architecture
+- Inputs decomposed into tasks processed by reusable worker pool up to physical core bounds
+- Deterministic result ordering preserved by `InputIndex` tracking
+- Non-blocking main event loop processing timers and microtasks concurrently with parallel work
 
-## V0.6 — Memory Management
+## V0.6 — Memory + Concurrency ✅
 
-Advanced memory features:
-- Memory limits per worker
-- Garbage collection tuning
-- Memory usage reporting
-- Out-of-memory handling
+**Status: Current**
+
+Advanced memory ownership, queue bounds, and concurrency features:
+- Strict memory ownership boundaries with zero shared JS VM memory across threads
+- Explicit `TaskStatus` and `OperationStatus` state machines preventing double-resolution or illegal transitions
+- Bounded task queue backpressure limits (`max_queued_tasks`) rejecting overflow with `ConcurrencyLimitExceeded`
+- Worker JS global isolation and worker crash recovery (`handle_worker_failure`)
+- Real-time resource accounting and diagnostics snapshot (`active_operations`, `queued_tasks`, `running_tasks`, `pool_size`)
 
 ## V0.7 — Scheduler
 

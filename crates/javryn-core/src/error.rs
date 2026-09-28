@@ -144,6 +144,53 @@ pub enum RuntimeError {
         message: String,
     },
 
+    /// Maximum queued tasks limit exceeded (backpressure).
+    #[error(
+        "concurrency limit exceeded\n\n  Queue full: max allowed queued tasks is {max_queued_tasks}"
+    )]
+    ConcurrencyLimitExceeded {
+        /// Maximum allowed queued tasks limit.
+        max_queued_tasks: usize,
+    },
+
+    /// Task was cancelled before or during execution.
+    #[error("task cancelled\n\n  Task ID: {task_id}")]
+    TaskCancelled {
+        /// Unique Task ID.
+        task_id: u64,
+    },
+
+    /// Operation was cancelled.
+    #[error("operation cancelled\n\n  Operation ID: {operation_id}")]
+    OperationCancelled {
+        /// Unique Operation ID.
+        operation_id: u64,
+    },
+
+    /// Invalid state transition for a task.
+    #[error("invalid task state transition\n\n  Task ID: {task_id}, Attempted: {from:?} -> {to:?}")]
+    InvalidTaskStateTransition {
+        /// Unique Task ID.
+        task_id: u64,
+        /// Source state.
+        from: String,
+        /// Target state.
+        to: String,
+    },
+
+    /// Invalid state transition for an operation.
+    #[error(
+        "invalid operation state transition\n\n  Operation ID: {operation_id}, Attempted: {from:?} -> {to:?}"
+    )]
+    InvalidOperationStateTransition {
+        /// Unique Operation ID.
+        operation_id: u64,
+        /// Source state.
+        from: String,
+        /// Target state.
+        to: String,
+    },
+
     /// An error occurred during runtime execution.
     #[error("runtime error\n\n  {message}")]
     Runtime {
@@ -190,7 +237,14 @@ impl RuntimeError {
             | RuntimeError::WorkerCommunication { .. }
             | RuntimeError::WorkerSerialization { .. }
             | RuntimeError::WorkerExecution { .. }
-            | RuntimeError::WorkerFailed { .. } => crate::ExitCode::RuntimeFailure,
+            | RuntimeError::WorkerFailed { .. }
+            | RuntimeError::ConcurrencyLimitExceeded { .. }
+            | RuntimeError::TaskCancelled { .. }
+            | RuntimeError::OperationCancelled { .. }
+            | RuntimeError::InvalidTaskStateTransition { .. }
+            | RuntimeError::InvalidOperationStateTransition { .. } => {
+                crate::ExitCode::RuntimeFailure
+            }
 
             RuntimeError::Shutdown { .. } => crate::ExitCode::ShutdownFailure,
 

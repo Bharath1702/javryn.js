@@ -107,3 +107,40 @@ fn test_parallel_map_closure_boundary() {
     assert!(success);
     assert!(stdout.contains("CLOSURE_RESULT:CAUGHT_ERROR"));
 }
+
+#[test]
+fn test_parallel_map_promise_methods() {
+    let (success, stdout, _stderr) = run_javryn_script("tests/javascript/parallel/promise_methods.js");
+    assert!(success);
+    assert!(stdout.contains("THEN_RESULT:[10,20,30]"));
+    assert!(stdout.contains("CATCH_RESULT:Error: Task failed at element 2"));
+    assert!(stdout.contains("THEN_STATUS:true,CATCH_STATUS:true"));
+}
+
+#[test]
+fn test_parallel_map_concurrency_isolation() {
+    let (success, stdout, _stderr) = run_javryn_script("tests/javascript/parallel/concurrency_isolation.js");
+    assert!(success);
+    assert!(stdout.contains("ISOLATION_CHECK:true"));
+    assert!(stdout.contains("STRESS_LEN:500,STRESS_SUM:250500"));
+}
+
+#[test]
+fn test_parallel_map_backpressure_rejection() {
+    let (success, stdout, _stderr) = run_javryn_script("tests/javascript/parallel/backpressure_test.js");
+    assert!(success);
+    assert!(stdout.contains("BACKPRESSURE_RESULT:CAUGHT_ERROR"));
+}
+
+#[test]
+fn test_parallel_map_explicit_cancellation() {
+    let (success, stdout, _stderr) = run_javryn_script("tests/javascript/parallel/explicit_cancellation.js");
+    assert!(success);
+    assert!(stdout.contains("EXPLICIT_CANCEL_TRIGGERED:true"));
+    assert!(stdout.contains("EXPLICIT_CANCEL_RESULT:CAUGHT_ERROR"));
+    assert!(stdout.contains("POST_CANCEL_RECOVERY:[20,40]"));
+}
+
+
+
+

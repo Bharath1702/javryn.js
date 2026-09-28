@@ -176,13 +176,34 @@ fn host_parallel_map(
     Ok(JsValue::from(promise))
 }
 
+/// Host native function for `parallel.cancel(op_id)`.
+fn host_parallel_cancel(
+    _this: &JsValue,
+    args: &[JsValue],
+    context: &mut Context,
+) -> Result<JsValue, JsError> {
+    let op_id_num = args.first().and_then(|v| v.as_number()).ok_or_else(|| {
+        JsError::from_opaque(JsValue::from(js_string!(
+            "parallel.cancel requires an operationId number as first argument"
+        )))
+    })?;
+
+    let op_id = crate::workers::id::OperationId(op_id_num as u64);
+    let cancelled = with_task_manager(|m| m.cancel_operation(op_id, context));
+
+    Ok(JsValue::from(cancelled))
+}
+
 /// Registers the global `parallel` API in the Boa context.
 pub fn register_parallel_api(context: &mut Context) -> Result<(), RuntimeError> {
     reset_task_manager();
 
     let fn_map = NativeFunction::from_fn_ptr(host_parallel_map);
+    let fn_cancel = NativeFunction::from_fn_ptr(host_parallel_cancel);
+
     let parallel_obj = ObjectInitializer::new(context)
         .function(fn_map, js_string!("map"), 2)
+        .function(fn_cancel, js_string!("cancel"), 1)
         .build();
 
     let global = context.global_object();
