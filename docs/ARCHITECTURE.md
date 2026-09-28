@@ -122,3 +122,29 @@ User executes javryn script.js
 2. **Task Manager (`TaskManager`)**: Manages `OperationId`, `TaskId`, input index mapping (`InputIndex`), task queueing, worker pool assignment, and deterministic ordered result assembly.
 3. **Worker Manager (`WorkerManager`)**: Manages the reusable pool of worker threads. Executes tasks by passing serialized callback source + argument payloads (`WorkerMessage::ExecuteTask`) to available workers.
 4. **Isolated Workers**: Dedicated worker threads running isolated Boa JavaScript contexts and event loops. Executed results (`WorkerResponse::TaskCompleted`) are dispatched asynchronously through the main thread event loop.
+
+## Intelligent Scheduler Architecture (V0.7)
+
+```text
+                     Javryn Runtime
+                           │
+                 Parallel API (`parallel.map`)
+                           │
+                      TaskManager
+                           │
+                  ┌────────▼────────┐
+                  │    Scheduler    │
+                  └────────┬────────┘
+                           │
+               ┌───────────┼───────────┐
+               ▼           ▼           ▼
+            Worker 1    Worker 2    Worker N
+```
+
+### Subsystem Responsibilities
+
+1. **Parallel Host API (`parallel.map`)**: Exposes host global to main context, submitting tasks and returning a native `Promise`.
+2. **Task Manager (`TaskManager`)**: Owns task lifecycle state machines (`TaskStatus`, `OperationStatus`), bounded task queue (`max_queued_tasks`), result array index storage, and Promise settlement.
+3. **Scheduler (`Scheduler`)**: Determines task selection (`select_task`), worker assignment (`select_worker`), priority policy (`SchedulingPolicy`), starvation prevention (aging boost), and queue latency metrics collection.
+4. **Worker Manager (`WorkerManager`)**: Manages thread pool spawning, thread health, message posting, and thread recovery (`handle_worker_failure`).
+5. **Isolated Workers**: Worker threads running isolated Boa engine contexts processing items in isolation and returning completed results via MPSC response channels.

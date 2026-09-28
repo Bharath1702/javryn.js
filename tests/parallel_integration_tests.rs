@@ -141,6 +141,25 @@ fn test_parallel_map_explicit_cancellation() {
     assert!(stdout.contains("POST_CANCEL_RECOVERY:[20,40]"));
 }
 
+#[test]
+fn test_scheduler_fairness_and_uneven_workload() {
+    let (success, stdout, _stderr) = run_javryn_script("tests/javascript/parallel/scheduler_fairness.js");
+    assert!(success);
+    assert!(stdout.contains("UNEVEN_WORKLOAD_RESULT:[20,2,30,4,40,6,50,8]"));
+    assert!(stdout.contains("SCHEDULER_CONCURRENT_OP1:[11,12,13,14]"));
+    assert!(stdout.contains("SCHEDULER_CONCURRENT_OP2:[200,400,600]"));
+}
+
+#[test]
+fn test_scheduler_stress_and_no_duplicate_execution() {
+    let (success, stdout, _stderr) = run_javryn_script("tests/javascript/parallel/scheduler_stress_verification.js");
+    assert!(success);
+    assert!(stdout.contains("STRESS_1000_LEN:1000"));
+    assert!(stdout.contains("STRESS_1000_UNIQUE:1000"));
+    assert!(stdout.contains("STRESS_1000_CORRECT_SUM:true"));
+    assert!(stdout.contains("RECOVERY_AFTER_CANCEL_RESULT:[5,10]"));
+}
+
 
 
 

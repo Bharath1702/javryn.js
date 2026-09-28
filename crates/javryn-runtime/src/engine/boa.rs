@@ -115,7 +115,10 @@ impl JavaScriptEngine for BoaEngineAdapter {
         }
 
         // Step 2: Run event loop to drain microtasks, process timers, and poll worker responses
-        TIMER_QUEUE.with(|q| EventLoop::run(context, &mut q.borrow_mut(), path))?;
+        TIMER_QUEUE.with(|q| {
+            let mut queue = q.borrow_mut();
+            EventLoop::run(context, &mut queue, path)
+        })?;
 
         tracing::info!(
             file = %path.display(),
@@ -229,8 +232,11 @@ fn host_set_timeout(
         .unwrap_or(0);
 
     let id = TIMER_QUEUE.with(|q| {
-        q.borrow_mut()
-            .set_timeout(callback, Duration::from_millis(delay_ms))
+        if let Ok(mut queue) = q.try_borrow_mut() {
+            queue.set_timeout(callback, Duration::from_millis(delay_ms))
+        } else {
+            TimerId(0)
+        }
     });
 
     Ok(JsValue::from(id.0 as f64))
@@ -243,7 +249,11 @@ fn host_clear_timeout(
 ) -> Result<JsValue, JsError> {
     if let Some(id_num) = args.first().and_then(|v| v.as_number()) {
         let id = TimerId(id_num as u64);
-        TIMER_QUEUE.with(|q| q.borrow_mut().cancel(id));
+        TIMER_QUEUE.with(|q| {
+            if let Ok(mut queue) = q.try_borrow_mut() {
+                queue.cancel(id);
+            }
+        });
     }
     Ok(JsValue::undefined())
 }
@@ -261,8 +271,11 @@ fn host_set_interval(
         .unwrap_or(0);
 
     let id = TIMER_QUEUE.with(|q| {
-        q.borrow_mut()
-            .set_interval(callback, Duration::from_millis(interval_ms))
+        if let Ok(mut queue) = q.try_borrow_mut() {
+            queue.set_interval(callback, Duration::from_millis(interval_ms))
+        } else {
+            TimerId(0)
+        }
     });
 
     Ok(JsValue::from(id.0 as f64))
@@ -275,7 +288,11 @@ fn host_clear_interval(
 ) -> Result<JsValue, JsError> {
     if let Some(id_num) = args.first().and_then(|v| v.as_number()) {
         let id = TimerId(id_num as u64);
-        TIMER_QUEUE.with(|q| q.borrow_mut().cancel(id));
+        TIMER_QUEUE.with(|q| {
+            if let Ok(mut queue) = q.try_borrow_mut() {
+                queue.cancel(id);
+            }
+        });
     }
     Ok(JsValue::undefined())
 }
@@ -288,8 +305,9 @@ fn host_queue_microtask(
     let callback = args.first().cloned().unwrap_or(JsValue::undefined());
     // queueMicrotask schedules zero-delay timer in event loop for prompt microtask processing
     TIMER_QUEUE.with(|q| {
-        q.borrow_mut()
-            .set_timeout(callback, Duration::from_millis(0))
+        if let Ok(mut queue) = q.try_borrow_mut() {
+            queue.set_timeout(callback, Duration::from_millis(0));
+        }
     });
 
     Ok(JsValue::undefined())

@@ -26,6 +26,8 @@ pub fn next_task_id() -> TaskId {
     TaskId(NEXT_TASK_ID.fetch_add(1, Ordering::Relaxed))
 }
 
+use crate::scheduler::{Scheduler, SchedulerMetrics, TaskPriority};
+
 /// Resource and concurrency accounting diagnostics snapshot.
 #[derive(Debug, Clone, Default)]
 pub struct TaskManagerDiagnostics {
@@ -34,6 +36,7 @@ pub struct TaskManagerDiagnostics {
     pub running_tasks: usize,
     pub pool_size: usize,
     pub max_queued_tasks: usize,
+    pub scheduler_metrics: SchedulerMetrics,
 }
 
 /// Central manager tracking parallel operations and tasks with bounded queues and state machines.
@@ -43,6 +46,7 @@ pub struct TaskManager {
     operations: HashMap<OperationId, ParallelOperation>,
     pool_size: usize,
     max_queued_tasks: usize,
+    scheduler: Scheduler,
 }
 
 impl TaskManager {
@@ -59,6 +63,7 @@ impl TaskManager {
             operations: HashMap::new(),
             pool_size: default_pool_size,
             max_queued_tasks: 10_000,
+            scheduler: Scheduler::new(),
         }
     }
 
@@ -80,6 +85,7 @@ impl TaskManager {
             running_tasks: self.active_tasks.len(),
             pool_size: self.pool_size,
             max_queued_tasks: self.max_queued_tasks,
+            scheduler_metrics: self.scheduler.metrics().clone(),
         }
     }
 
@@ -90,6 +96,26 @@ impl TaskManager {
         items: Vec<JsMessage>,
         resolve_fn: JsObject,
         reject_fn: JsObject,
+        context: &mut Context,
+    ) -> Result<OperationId, RuntimeError> {
+        self.submit_map_operation_with_priority(
+            fn_source,
+            items,
+            resolve_fn,
+            reject_fn,
+            TaskPriority::Normal,
+            context,
+        )
+    }
+
+    /// Submits a `parallel.map` operation with explicit TaskPriority.
+    pub fn submit_map_operation_with_priority(
+        &mut self,
+        fn_source: String,
+        items: Vec<JsMessage>,
+        resolve_fn: JsObject,
+        reject_fn: JsObject,
+        priority: TaskPriority,
         context: &mut Context,
     ) -> Result<OperationId, RuntimeError> {
         let op_id = next_op_id();
@@ -155,6 +181,8 @@ impl TaskManager {
                 status: TaskStatus::Created,
                 assigned_worker: None,
                 payload_bytes: 0,
+                priority,
+                enqueue_time: std::time::Instant::now(),
             };
             let _ = task.status.transition_to(task_id, TaskStatus::Queued);
             self.pending_tasks.push_back(task);
@@ -176,52 +204,62 @@ impl TaskManager {
         })
     }
 
-    /// Dispatches pending queued tasks to idle workers in the worker pool.
+    /// Dispatches pending queued tasks to workers using the Intelligent Scheduler.
     pub fn dispatch_pending_tasks(&mut self) -> Result<(), RuntimeError> {
         if self.pending_tasks.is_empty() {
             return Ok(());
         }
 
         let active_worker_ids = with_worker_manager(|m| m.active_worker_ids());
+        if active_worker_ids.is_empty() {
+            return Ok(());
+        }
 
-        for worker_id in active_worker_ids {
-            if self.pending_tasks.is_empty() {
+        for wid in &active_worker_ids {
+            self.scheduler.register_worker(*wid);
+        }
+
+        while !self.pending_tasks.is_empty() {
+            let Some(worker_id) = self.scheduler.select_worker(&active_worker_ids) else {
                 break;
-            }
+            };
 
-            // Check if worker is currently processing a task
             let is_worker_busy = self
                 .active_tasks
                 .values()
                 .any(|t| t.assigned_worker == Some(worker_id));
 
-            if !is_worker_busy {
-                let Some(mut task) = self.pending_tasks.pop_front() else {
-                    continue;
-                };
+            if is_worker_busy {
+                break;
+            }
 
-                let task_id = task.task_id;
-                let fn_source = task.fn_source.clone();
-                let arg = task.arg.clone();
+            let Some(task_idx) = self.scheduler.select_task(&mut self.pending_tasks) else {
+                break;
+            };
 
-                if task
-                    .status
-                    .transition_to(task_id, TaskStatus::Running)
-                    .is_ok()
-                {
-                    task.assigned_worker = Some(worker_id);
+            let mut task = self.pending_tasks.remove(task_idx).unwrap();
+            let task_id = task.task_id;
+            let fn_source = task.fn_source.clone();
+            let arg = task.arg.clone();
 
-                    let res =
-                        with_worker_manager(|m| m.post_task(worker_id, task_id, fn_source, arg));
+            if task
+                .status
+                .transition_to(task_id, TaskStatus::Running)
+                .is_ok()
+            {
+                task.assigned_worker = Some(worker_id);
 
-                    if res.is_ok() {
-                        self.active_tasks.insert(task_id, task);
-                    } else {
-                        // Re-queue task if worker post failed
-                        let _ = task.status.transition_to(task_id, TaskStatus::Queued);
-                        task.assigned_worker = None;
-                        self.pending_tasks.push_front(task);
-                    }
+                let res = with_worker_manager(|m| m.post_task(worker_id, task_id, fn_source, arg));
+
+                if res.is_ok() {
+                    self.scheduler.record_dispatch(worker_id, &task);
+                    self.active_tasks.insert(task_id, task);
+                } else {
+                    // Re-queue task if worker post failed
+                    let _ = task.status.transition_to(task_id, TaskStatus::Queued);
+                    task.assigned_worker = None;
+                    self.pending_tasks.push_front(task);
+                    break;
                 }
             }
         }
@@ -237,11 +275,13 @@ impl TaskManager {
     ) -> Result<(), RuntimeError> {
         match response {
             WorkerResponse::TaskCompleted {
-                worker_id: _,
+                worker_id,
                 task_id,
                 data,
             } => {
                 if let Some(mut task) = self.active_tasks.remove(&task_id) {
+                    let w_id = task.assigned_worker.unwrap_or(worker_id);
+                    self.scheduler.record_completion(w_id, &task);
                     let op_id = task.op_id;
                     let idx = task.input_index;
                     let _ = task.status.transition_to(task_id, TaskStatus::Completed);

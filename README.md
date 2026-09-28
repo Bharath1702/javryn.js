@@ -2,9 +2,9 @@
 
 **A high-performance, parallel JavaScript runtime.**
 
-## Current Status: V0.6 — Memory + Concurrency
+## Current Status: V0.7 — Intelligent Scheduler
 
-Javryn V0.6 strengthens worker and parallel task architecture under high concurrency pressure. It establishes explicit memory ownership boundaries, task/operation state machines, bounded task queue backpressure (`ConcurrencyLimitExceeded`), worker state isolation, and runtime resource accounting.
+Javryn V0.7 upgrades the task dispatch architecture with a dedicated **Intelligent Scheduler**. The runtime features load-aware dynamic worker selection, task priority scheduling, aging starvation prevention, and queue latency diagnostics while preserving deterministic result ordering, cancellation, backpressure, and worker failure recovery.
 
 ```bash
 javryn examples/parallel-map.js
@@ -12,14 +12,15 @@ javryn examples/parallel-map.js
 # Parallel map result: [ 1, 4, 9, 16 ]
 ```
 
-## Features in V0.6
+## Features in V0.7
 
+- **Dedicated Intelligent Scheduler**: Decoupled `Scheduler` module handling task selection (`select_task`) and worker placement (`select_worker`).
+- **Dynamic Load-Aware Dispatching**: `LoadAwarePolicy` tracks worker thread active task load and busy duration to prevent idle workers during uneven workloads.
+- **Priority & Aging Starvation Prevention**: `TaskPriority` support with automated aging boosts for tasks queued over 500ms.
+- **Scheduler Metrics & Diagnostics**: Latency tracking (`queue_wait_avg_ms`, `queue_wait_max_ms`), dispatch counts, starvation boosts, and worker utilization metrics in `TaskManagerDiagnostics`.
 - **Explicit Parallel API**: `parallel.map(items, callback)` returning a native JavaScript `Promise`.
-- **Task & Operation State Machines**: Strict state transitions (`TaskStatus` and `OperationStatus`) preventing double-resolution or illegal state changes.
-- **Bounded Concurrency & Backpressure**: Configurable `max_workers` and `max_queued_tasks` queue limits preventing unbounded memory growth.
-- **Worker Isolation & Recovery**: Strict cross-worker memory boundaries with zero shared JS VM state; full runtime recovery on worker panic.
-- **Resource Accounting & Diagnostics**: Real-time tracking of active operations, queued tasks, running tasks, and thread pool size.
-- **Non-Blocking Main Loop**: Main event loop processes timers and microtasks while parallel tasks run concurrently on worker threads.
+- **Concurrency & Backpressure Control**: Configurable worker pool and task queue limits (`ConcurrencyLimitExceeded`).
+- **Deterministic Result Aggregation**: Array indexing preserves result order regardless of non-deterministic thread completion order.
 
 ## Installation
 

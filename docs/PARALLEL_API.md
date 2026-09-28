@@ -97,9 +97,9 @@ main();
 ```
 
 1. **No Shared JavaScript Memory**: Workers do not share heap objects, Boa contexts, or variable scopes.
-2. **Explicit Parallelism Only**: Standard JavaScript operations (`Array.prototype.map`) remain single-threaded. Parallelism occurs only via `parallel.map()`.
-3. **Reusable Worker Pool**: Workers are created once up to `available_parallelism()` and reused across multiple `parallel.map()` calls.
-4. **Deterministic Result Ordering**: Results are collected by `input_index`, preserving input array order regardless of thread completion timing.
+2. **Explicit Parallelism Only**: Standard JavaScript operations (`Array.prototype.map`) remain single-threaded. Parallelism occurs only via `parallel.map()`. V0.7 schedules explicitly created tasks; it does not automatically parallelize sequential loops.
+3. **Reusable Worker Pool & Intelligent Scheduler**: Workers are created up to configured limits and tasks are scheduled dynamically via `Scheduler` with load-aware placement and starvation prevention.
+4. **Deterministic Result Ordering**: Results are collected by `input_index`, preserving input array order regardless of non-deterministic thread completion timing.
 5. **Non-Blocking Event Loop**: Main runtime event loop continues processing timers and microtasks while worker threads compute tasks.
 
 ---

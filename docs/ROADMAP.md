@@ -73,16 +73,19 @@ Advanced memory ownership, queue bounds, and concurrency features:
 - Worker JS global isolation and worker crash recovery (`handle_worker_failure`)
 - Real-time resource accounting and diagnostics snapshot (`active_operations`, `queued_tasks`, `running_tasks`, `pool_size`)
 
-## V0.7 — Scheduler
+## V0.7 — Intelligent Scheduler ✅
 
-Intelligent work distribution:
-- Task queue with priority support
-- Work stealing
-- CPU affinity
-- Load balancing across workers
-- Scheduler configuration API
+**Status: Current**
 
-## V0.8 — Automatic Parallelization
+Intelligent work distribution and load-aware scheduling:
+- Decoupled `Scheduler` abstraction separating policy from task lifecycle (`TaskManager`) and thread management (`WorkerManager`)
+- Dynamic load-aware worker placement policy (`LoadAwarePolicy`) tracking active tasks and historical execution duration
+- Priority model (`TaskPriority::High`, `Normal`, `Low`) with `PriorityFifoPolicy`
+- Aging starvation prevention automatically boosting tasks queued longer than 500ms
+- Comprehensive latency diagnostics (`queue_wait_avg_ms`, `queue_wait_max_ms`, `starvation_boosts`) in runtime diagnostics
+- Preserves V0.6 guarantees: backpressure, explicit cancellation, worker crash recovery, and deterministic indexed result ordering
+
+## V0.8 — Automatic Parallelization (Future)
 
 Transparent parallelism:
 - Automatic detection of parallelizable operations

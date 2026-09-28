@@ -13,6 +13,7 @@
 pub mod async_runtime;
 pub mod engine;
 pub mod runtime;
+pub mod scheduler;
 pub mod script;
 pub mod tasks;
 pub mod workers;
@@ -21,6 +22,9 @@ pub use async_runtime::{EventLoop, TimerId, TimerQueue};
 pub use engine::boa::BoaEngineAdapter;
 pub use engine::{ExecutionResult, JavaScriptEngine};
 pub use runtime::Runtime;
+pub use scheduler::{
+    LoadAwarePolicy, PriorityFifoPolicy, Scheduler, SchedulerMetrics, TaskPriority,
+};
 pub use script::validate_script;
 pub use tasks::TaskManager;
 pub use workers::{JsMessage, WorkerHandle, WorkerId, WorkerManager};

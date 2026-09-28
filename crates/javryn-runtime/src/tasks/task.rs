@@ -98,6 +98,9 @@ impl OperationStatus {
     }
 }
 
+pub use crate::scheduler::TaskPriority;
+use std::time::Instant;
+
 /// Represents an individual parallel item task.
 #[derive(Debug)]
 pub struct ParallelTask {
@@ -109,6 +112,8 @@ pub struct ParallelTask {
     pub status: TaskStatus,
     pub assigned_worker: Option<WorkerId>,
     pub payload_bytes: usize,
+    pub priority: TaskPriority,
+    pub enqueue_time: Instant,
 }
 
 /// Represents a multi-task parallel operation (`parallel.map`).

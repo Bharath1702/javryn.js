@@ -60,3 +60,12 @@ fn test_benchmark_workload_c_cpu_fibonacci() {
     println!("\n--- BENCHMARK WORKLOAD C (CPU FIBONACCI) ---");
     println!("Total Elapsed: {} ms", elapsed_ms);
 }
+
+#[test]
+fn test_benchmark_workload_d_uneven_scheduler_tasks() {
+    let (success, stdout, elapsed_ms) = run_javryn_script("tests/javascript/parallel/scheduler_fairness.js");
+    assert!(success);
+    assert!(stdout.contains("UNEVEN_WORKLOAD_RESULT:[20,2,30,4,40,6,50,8]"));
+    println!("\n--- BENCHMARK WORKLOAD D (V0.7 SCHEDULER UNEVEN TASKS) ---");
+    println!("Total Elapsed: {} ms", elapsed_ms);
+}
