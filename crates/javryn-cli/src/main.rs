@@ -52,6 +52,22 @@ struct Cli {
     /// Enable automatic AST parallelization mode.
     #[arg(long = "auto-parallel")]
     auto_parallel: bool,
+
+    /// Maximum number of worker threads allowed in worker pool.
+    #[arg(long = "max-workers", value_name = "WORKERS")]
+    max_workers: Option<usize>,
+
+    /// Maximum queued tasks limit for backpressure.
+    #[arg(long = "max-queued-tasks", value_name = "TASKS")]
+    max_queued_tasks: Option<usize>,
+
+    /// Timeout in milliseconds for graceful worker pool shutdown.
+    #[arg(long = "shutdown-timeout", value_name = "MS", default_value_t = 5000)]
+    shutdown_timeout: u64,
+
+    /// Emit operational diagnostics summary on execution completion.
+    #[arg(long = "diagnostics")]
+    diagnostics: bool,
 }
 
 impl Cli {
@@ -100,6 +116,10 @@ fn run(cli: &Cli, interrupted: &AtomicBool) -> Result<(), RuntimeError> {
         .script_path(cli.script.clone())
         .mode(cli.runtime_mode())
         .auto_parallel(cli.auto_parallel)
+        .max_workers(cli.max_workers)
+        .max_queued_tasks(cli.max_queued_tasks)
+        .shutdown_timeout_ms(cli.shutdown_timeout)
+        .diagnostics(cli.diagnostics)
         .build()?;
 
     tracing::debug!(mode = %config.mode(), script = %config.script_path().display(), "configuration built");

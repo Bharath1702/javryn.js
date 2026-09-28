@@ -481,3 +481,213 @@ pub fn reset_task_manager() {
         *m.borrow_mut() = TaskManager::new();
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diagnostics_initial_state_is_clean() {
+        let tm = TaskManager::new();
+        let diag = tm.diagnostics();
+        assert_eq!(diag.active_operations, 0);
+        assert_eq!(diag.queued_tasks, 0);
+        assert_eq!(diag.running_tasks, 0);
+        assert!(diag.pool_size >= 2);
+        assert_eq!(diag.max_queued_tasks, 10_000);
+    }
+
+    #[test]
+    fn configure_updates_bounds() {
+        let mut tm = TaskManager::new();
+        tm.configure(4, 100);
+        let diag = tm.diagnostics();
+        assert_eq!(diag.pool_size, 4);
+        assert_eq!(diag.max_queued_tasks, 100);
+    }
+
+    #[test]
+    fn configure_rejects_zero_workers() {
+        let mut tm = TaskManager::new();
+        let original_pool = tm.diagnostics().pool_size;
+        tm.configure(0, 100);
+        // Zero workers should NOT change pool size (guard in configure)
+        assert_eq!(tm.diagnostics().pool_size, original_pool);
+    }
+
+    #[test]
+    fn configure_rejects_zero_queued_tasks() {
+        let mut tm = TaskManager::new();
+        let original_max = tm.diagnostics().max_queued_tasks;
+        tm.configure(4, 0);
+        // Zero max_queued_tasks should NOT change limit
+        assert_eq!(tm.diagnostics().max_queued_tasks, original_max);
+    }
+
+    #[test]
+    fn repeated_diagnostics_cycles_remain_clean() {
+        let mut tm = TaskManager::new();
+        tm.configure(2, 50);
+
+        for _cycle in 0..100 {
+            let diag = tm.diagnostics();
+            assert_eq!(diag.active_operations, 0);
+            assert_eq!(diag.queued_tasks, 0);
+            assert_eq!(diag.running_tasks, 0);
+        }
+    }
+
+    #[test]
+    fn has_pending_returns_false_when_clean() {
+        let tm = TaskManager::new();
+        assert!(!tm.has_pending());
+    }
+
+    #[test]
+    fn default_pool_size_at_least_2() {
+        let tm = TaskManager::new();
+        assert!(tm.diagnostics().pool_size >= 2);
+    }
+
+    // ─── RELEASE GATE 3: CONCURRENT CANCELLATION ISOLATION ───
+    #[test]
+    fn release_gate_concurrent_cancellation_isolation() {
+        let mut tm = TaskManager::new();
+        tm.configure(4, 100);
+
+        let mut ctx = boa_engine::Context::default();
+        let resolve = ctx
+            .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone();
+        let reject = ctx
+            .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone();
+
+        let items = vec![JsMessage::Number(1.0), JsMessage::Number(2.0)];
+        let op1 = tm
+            .submit_map_operation(
+                "x => x".to_string(),
+                items.clone(),
+                resolve.clone(),
+                reject.clone(),
+                &mut ctx,
+            )
+            .expect("op1");
+        let op2 = tm
+            .submit_map_operation(
+                "x => x".to_string(),
+                items.clone(),
+                resolve.clone(),
+                reject.clone(),
+                &mut ctx,
+            )
+            .expect("op2");
+        let op3 = tm
+            .submit_map_operation("x => x".to_string(), items, resolve, reject, &mut ctx)
+            .expect("op3");
+
+        let diag_before = tm.diagnostics();
+        assert_eq!(diag_before.active_operations, 3);
+
+        // Cancel Op 1 — Op 2 and Op 3 must remain untouched
+        let cancelled = tm.cancel_operation(op1, &mut ctx);
+        assert!(cancelled);
+
+        let diag_after = tm.diagnostics();
+        assert_eq!(diag_after.active_operations, 2);
+
+        // Cancel Op 2
+        let cancelled2 = tm.cancel_operation(op2, &mut ctx);
+        assert!(cancelled2);
+
+        // Op 3 remains active and operational
+        assert_eq!(tm.diagnostics().active_operations, 1);
+
+        // Cancel Op 3 to settle state completely
+        let cancelled3 = tm.cancel_operation(op3, &mut ctx);
+        assert!(cancelled3);
+
+        let diag_final = tm.diagnostics();
+        assert_eq!(diag_final.active_operations, 0);
+    }
+
+    // ─── RELEASE GATE 4: LIVE RESOURCE ACCOUNTING INVARIANTS ───
+    #[test]
+    fn release_gate_live_resource_accounting_invariants() {
+        let mut tm = TaskManager::new();
+        tm.configure(4, 100);
+
+        let diag = tm.diagnostics();
+        assert!(diag.running_tasks <= diag.pool_size);
+        assert!(diag.queued_tasks <= diag.max_queued_tasks);
+
+        let mut ctx = boa_engine::Context::default();
+        let resolve = ctx
+            .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone();
+        let reject = ctx
+            .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .clone();
+
+        let items = vec![JsMessage::Number(10.0), JsMessage::Number(20.0)];
+        let op_id = tm
+            .submit_map_operation("x => x * 2".to_string(), items, resolve, reject, &mut ctx)
+            .expect("submit op");
+
+        let mid_diag = tm.diagnostics();
+        assert!(mid_diag.running_tasks <= mid_diag.pool_size);
+        assert!(mid_diag.queued_tasks <= mid_diag.max_queued_tasks);
+
+        tm.cancel_operation(op_id, &mut ctx);
+    }
+
+    // ─── RELEASE GATE 5: EXACT 250-CYCLE ENDURANCE WORKLOAD ───
+    #[test]
+    fn release_gate_exact_250_cycle_endurance() {
+        let mut tm = TaskManager::new();
+        tm.configure(4, 500);
+
+        let mut total_submitted = 0usize;
+
+        for cycle in 1..=250 {
+            let mut ctx = boa_engine::Context::default();
+            let resolve = ctx
+                .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .clone();
+            let reject = ctx
+                .eval(boa_engine::Source::from_bytes(b"(function() {})"))
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .clone();
+
+            let items = vec![JsMessage::Number(cycle as f64)];
+            let op_id = tm
+                .submit_map_operation("x => x + 1".to_string(), items, resolve, reject, &mut ctx)
+                .expect("submit op");
+            total_submitted += 1;
+
+            tm.cancel_operation(op_id, &mut ctx);
+
+            let diag_end = tm.diagnostics();
+            assert_eq!(diag_end.active_operations, 0);
+        }
+
+        assert_eq!(total_submitted, 250);
+    }
+}

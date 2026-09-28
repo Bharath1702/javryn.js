@@ -282,3 +282,91 @@ fn javascript_runtime_exception_fails_with_exit_code_5() {
         .stderr(predicate::str::contains("JavaScript execution error"))
         .stderr(predicate::str::contains("Uncaught test error"));
 }
+
+// ─── V0.9 Production Hardening CLI Flags ────────────────────────────────────
+
+#[test]
+fn max_workers_zero_fails_with_config_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("app.js");
+    std::fs::write(&script, "console.log('ok');").unwrap();
+
+    javryn()
+        .args(["--max-workers", "0"])
+        .arg(&script)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "max_workers must be greater than 0",
+        ));
+}
+
+#[test]
+fn max_workers_exceeds_128_fails_with_config_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("app.js");
+    std::fs::write(&script, "console.log('ok');").unwrap();
+
+    javryn()
+        .args(["--max-workers", "256"])
+        .arg(&script)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("exceeds maximum threshold of 128"));
+}
+
+#[test]
+fn shutdown_timeout_below_100_fails_with_config_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("app.js");
+    std::fs::write(&script, "console.log('ok');").unwrap();
+
+    javryn()
+        .args(["--shutdown-timeout", "50"])
+        .arg(&script)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "shutdown_timeout_ms must be at least 100ms",
+        ));
+}
+
+#[test]
+fn diagnostics_flag_accepted_and_produces_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("app.js");
+    std::fs::write(&script, "console.log('diag test');").unwrap();
+
+    javryn()
+        .args(["--diagnostics"])
+        .arg(&script)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Runtime Diagnostics"));
+}
+
+#[test]
+fn max_workers_valid_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("app.js");
+    std::fs::write(&script, "console.log('workers ok');").unwrap();
+
+    javryn()
+        .args(["--max-workers", "4"])
+        .arg(&script)
+        .assert()
+        .success();
+}
+
+#[test]
+fn auto_parallel_flag_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("app.js");
+    std::fs::write(&script, "console.log('auto parallel');").unwrap();
+
+    javryn()
+        .args(["--auto-parallel"])
+        .arg(&script)
+        .assert()
+        .success();
+}

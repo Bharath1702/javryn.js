@@ -357,4 +357,86 @@ mod tests {
             crate::ExitCode::GenericFailure
         );
     }
+
+    // --- V0.9 Production Hardening: Error Variant Coverage ---
+
+    #[test]
+    fn worker_failed_has_runtime_exit_code() {
+        let err = RuntimeError::WorkerFailed {
+            worker_id: 42,
+            message: "thread panicked".to_string(),
+        };
+        assert_eq!(err.exit_code(), crate::ExitCode::RuntimeFailure);
+        let msg = err.to_string();
+        assert!(msg.contains("42"));
+        assert!(msg.contains("thread panicked"));
+    }
+
+    #[test]
+    fn concurrency_limit_exceeded_displays_limit() {
+        let err = RuntimeError::ConcurrencyLimitExceeded {
+            max_queued_tasks: 100,
+        };
+        assert_eq!(err.exit_code(), crate::ExitCode::RuntimeFailure);
+        let msg = err.to_string();
+        assert!(msg.contains("100"));
+    }
+
+    #[test]
+    fn task_cancelled_displays_id() {
+        let err = RuntimeError::TaskCancelled { task_id: 7 };
+        assert_eq!(err.exit_code(), crate::ExitCode::RuntimeFailure);
+        assert!(err.to_string().contains("7"));
+    }
+
+    #[test]
+    fn operation_cancelled_displays_id() {
+        let err = RuntimeError::OperationCancelled { operation_id: 3 };
+        assert_eq!(err.exit_code(), crate::ExitCode::RuntimeFailure);
+        assert!(err.to_string().contains("3"));
+    }
+
+    #[test]
+    fn shutdown_error_has_shutdown_exit_code() {
+        let err = RuntimeError::Shutdown {
+            message: "timeout expired".to_string(),
+        };
+        assert_eq!(err.exit_code(), crate::ExitCode::ShutdownFailure);
+        assert!(err.to_string().contains("timeout expired"));
+    }
+
+    #[test]
+    fn invalid_task_state_transition_displays_states() {
+        let err = RuntimeError::InvalidTaskStateTransition {
+            task_id: 5,
+            from: "Completed".to_string(),
+            to: "Running".to_string(),
+        };
+        assert_eq!(err.exit_code(), crate::ExitCode::RuntimeFailure);
+        let msg = err.to_string();
+        assert!(msg.contains("Completed"));
+        assert!(msg.contains("Running"));
+    }
+
+    #[test]
+    fn invalid_operation_state_transition_displays_states() {
+        let err = RuntimeError::InvalidOperationStateTransition {
+            operation_id: 2,
+            from: "Completed".to_string(),
+            to: "Cancelled".to_string(),
+        };
+        assert_eq!(err.exit_code(), crate::ExitCode::RuntimeFailure);
+        let msg = err.to_string();
+        assert!(msg.contains("Completed"));
+        assert!(msg.contains("Cancelled"));
+    }
+
+    #[test]
+    fn worker_serialization_error_displays_message() {
+        let err = RuntimeError::WorkerSerialization {
+            message: "cannot serialize Function".to_string(),
+        };
+        assert_eq!(err.exit_code(), crate::ExitCode::RuntimeFailure);
+        assert!(err.to_string().contains("cannot serialize Function"));
+    }
 }

@@ -96,15 +96,17 @@ Transparent parallelism for provably-safe JavaScript workloads:
 - `--auto-parallel` CLI flag and `parallel.auto(fn)` opt-in JavaScript host API
 - Full reuse of V0.7 Intelligent Scheduler, `TaskManager`, and isolated thread pool
 
-## V0.9 — Production Hardening
+## V0.9 — Production Hardening ✅
 
-Production readiness:
-- Performance benchmarking and optimization
-- Security audit
-- Fuzzing
-- Stress testing
-- Platform-specific optimizations
-- Comprehensive documentation review
+**Status: Current**
+
+Production readiness, observability, worker failure recovery, and resource safety:
+- Bounded runtime resource configuration (`--max-workers`, `--max-queued-tasks`, `--shutdown-timeout`) with strict validation
+- Timed graceful worker shutdown (`terminate_with_timeout`) and failure isolation
+- Serialization boundary hardening enforcing clean error propagation on functions/cyclic objects without poisoning thread channels
+- Unified operational diagnostics (`--diagnostics` flag and `RuntimeDiagnostics`) reporting execution time, queue bounds, and scheduler metrics
+- Resource accounting invariants tested across repeated operation cycles and stress environments
+- Documented security boundary model (worker thread isolation vs host filesystem/timer access)
 
 ## V1.0 — Production Release
 

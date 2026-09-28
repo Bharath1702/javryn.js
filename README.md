@@ -2,21 +2,21 @@
 
 **A high-performance, parallel JavaScript runtime.**
 
-## Current Status: V0.8 — Automatic Parallelization
+## Current Status: V0.9 — Production Hardening
 
-Javryn V0.8 introduces **Automatic Parallelization**, capable of identifying a restricted, provably-safe subset of sequential JavaScript workloads and automatically executing them in parallel across independent worker threads using the underlying V0.7 Intelligent Scheduler. Any code containing side effects, mutations, or uncertain dependencies cleanly falls back to native sequential execution.
+Javryn V0.9 transforms the runtime into a robust, observable, and recoverable execution environment for production workloads with configurable resource limits, timed graceful shutdown, worker failure isolation, and operational diagnostics.
 
 ```bash
-javryn --auto-parallel examples/auto-parallel-basic.js
+javryn --diagnostics --max-workers 4 examples/parallel-map.js
 ```
 
-## Features in V0.8
+## Features in V0.9
 
-- **Static Safety & Dependency Analysis**: `StaticAnalyzer` inspects expressions and loops to guarantee iteration independence before enabling parallel execution.
-- **Sequential Fallback Guarantee**: Code containing accumulator operations (`+=`), array mutations (`push`), `console.log`, or global state mutations falls back to sequential execution without throwing errors.
-- **Dynamic Chunk Sizing**: `ChunkPlanner` automatically partitions large loops into balanced task chunks based on physical core counts.
-- **Explicit Opt-in API & CLI Flag**: `parallel.auto(fn)` JavaScript API and `--auto-parallel` CLI flag.
-- **Dedicated Intelligent Scheduler Reuse**: Integrates directly into `TaskManager` and `Scheduler` without duplicating worker infrastructure.
+- **Bounded Resource Limits**: Configurable `--max-workers`, `--max-queued-tasks`, and `--shutdown-timeout` with strict boundary validation.
+- **Worker Failure Isolation**: Worker panics/crashes are isolated from main thread and remaining worker pool; failed tasks trigger clean promise rejection and worker eviction.
+- **Timed Graceful Shutdown**: `terminate_with_timeout` guarantees clean thread joins without deadlocking on hung workers.
+- **Operational Diagnostics**: `--diagnostics` flag outputs real-time execution statistics, queue wait averages, worker pool utilization, and scheduler metrics.
+- **Serialization Safety**: Rigid boundary enforcement rejecting unsupported types (functions, cyclic objects) cleanly without thread channel poisoning.
 
 ## Installation
 

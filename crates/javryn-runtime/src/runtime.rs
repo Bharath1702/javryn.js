@@ -83,6 +83,40 @@ impl Runtime {
             "runtime lifecycle complete"
         );
 
+        if self.config.diagnostics() {
+            crate::tasks::with_task_manager(|tm| {
+                let diag = tm.diagnostics();
+                eprintln!("\n=== Javryn Runtime Diagnostics ===");
+                eprintln!("Execution Time     : {} ms", elapsed.as_millis());
+                eprintln!("Active Operations  : {}", diag.active_operations);
+                eprintln!("Queued Tasks       : {}", diag.queued_tasks);
+                eprintln!("Running Tasks      : {}", diag.running_tasks);
+                eprintln!("Worker Pool Size   : {}", diag.pool_size);
+                eprintln!("Max Task Queue     : {}", diag.max_queued_tasks);
+                eprintln!(
+                    "Dispatches         : {}",
+                    diag.scheduler_metrics.total_dispatches
+                );
+                eprintln!(
+                    "Completions        : {}",
+                    diag.scheduler_metrics.total_completed
+                );
+                eprintln!(
+                    "Avg Queue Wait     : {:.2} ms",
+                    diag.scheduler_metrics.average_queue_wait_ms()
+                );
+                eprintln!(
+                    "Max Queue Wait     : {:.2} ms",
+                    diag.scheduler_metrics.queue_wait_max_ms
+                );
+                eprintln!(
+                    "Starvation Boosts  : {}",
+                    diag.scheduler_metrics.starvation_boosts
+                );
+                eprintln!("==================================\n");
+            });
+        }
+
         Ok(RuntimeResult::new(elapsed))
     }
 
@@ -117,6 +151,14 @@ impl Runtime {
 
         tracing::debug!("initializing runtime and engine");
         crate::autopar::set_auto_parallel_enabled(self.config.auto_parallel());
+
+        // Configure task manager bounds from runtime configuration
+        crate::tasks::with_task_manager(|tm| {
+            let max_workers = self.config.max_workers().unwrap_or(0);
+            let max_queued = self.config.max_queued_tasks().unwrap_or(0);
+            tm.configure(max_workers, max_queued);
+        });
+
         self.engine.initialize(self.config.mode())?;
 
         self.initialized = true;

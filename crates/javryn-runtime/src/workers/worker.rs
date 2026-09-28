@@ -175,8 +175,8 @@ impl WorkerHandle {
         }
     }
 
-    /// Terminates the worker thread and waits for thread join.
-    pub fn terminate(&mut self) -> Result<(), RuntimeError> {
+    /// Terminates the worker thread and waits for thread join up to the specified timeout.
+    pub fn terminate_with_timeout(&mut self, timeout: Duration) -> Result<(), RuntimeError> {
         if self.state_code() == STATE_STOPPED {
             return Ok(());
         }
@@ -185,12 +185,37 @@ impl WorkerHandle {
         let _ = self.sender.send(WorkerMessage::Shutdown);
 
         if let Some(handle) = self.thread_handle.take() {
+            let start = Instant::now();
+            while !handle.is_finished() {
+                if start.elapsed() >= timeout {
+                    tracing::warn!(
+                        worker_id = self.id.0,
+                        timeout_ms = timeout.as_millis(),
+                        "worker thread termination timed out"
+                    );
+                    self.state.store(STATE_FAILED, Ordering::SeqCst);
+                    return Err(RuntimeError::Shutdown {
+                        message: format!(
+                            "worker {} termination timed out after {} ms",
+                            self.id.0,
+                            timeout.as_millis()
+                        ),
+                    });
+                }
+                thread::sleep(Duration::from_millis(10));
+            }
+
             let _ = handle.join();
         }
 
         self.state.store(STATE_STOPPED, Ordering::SeqCst);
         tracing::debug!(worker_id = self.id.0, "worker thread terminated and joined");
         Ok(())
+    }
+
+    /// Terminates the worker thread and waits for thread join with default 5s timeout.
+    pub fn terminate(&mut self) -> Result<(), RuntimeError> {
+        self.terminate_with_timeout(Duration::from_secs(5))
     }
 }
 
