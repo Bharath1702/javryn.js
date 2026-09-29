@@ -218,6 +218,7 @@ fn unicode_filename_succeeds() {
 #[cfg(unix)]
 #[test]
 fn unreadable_file_fails() {
+    use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
 
     let dir = tempfile::tempdir().unwrap();
