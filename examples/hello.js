@@ -1,2 +1,2 @@
-// Hello World — Javryn V0.2 JavaScript Execution Example
+// Hello World — Javryn JavaScript Runtime
 console.log("Hello from Javryn!");

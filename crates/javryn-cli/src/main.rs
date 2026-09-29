@@ -21,16 +21,14 @@ use javryn_core::{ExitCode, RuntimeConfig, RuntimeError, RuntimeMode};
 use javryn_runtime::{Runtime, validate_script};
 
 /// Javryn — A high-performance, parallel JavaScript runtime.
-///
-/// V0.1: Runtime Foundation (JavaScript execution not yet implemented).
 #[derive(Parser, Debug)]
 #[command(
     name = "javryn",
     version,
-    about = "Javryn — A high-performance JavaScript runtime",
-    long_about = "Javryn is a high-performance, parallel JavaScript runtime.\n\n\
-                  V0.1 is the runtime foundation. JavaScript execution will be\n\
-                  available in V0.2."
+    about = "Javryn — A high-performance, parallel JavaScript runtime",
+    long_about = "Javryn is a high-performance, parallel JavaScript runtime built in Rust.\n\n\
+                  Features explicit parallelism (parallel.map), automatic parallelization,\n\
+                  isolated worker threads, and an intelligent load-aware scheduler."
 )]
 struct Cli {
     /// Path to the JavaScript file to run.
@@ -109,7 +107,7 @@ fn main() -> std::process::ExitCode {
 
 /// The main runtime lifecycle, extracted from `main` for testability.
 fn run(cli: &Cli, interrupted: &AtomicBool) -> Result<(), RuntimeError> {
-    tracing::debug!("Javryn V0.1 starting");
+    tracing::debug!("Javryn starting");
 
     // Step 1: Build configuration.
     let config = RuntimeConfig::builder()
@@ -152,7 +150,7 @@ fn run(cli: &Cli, interrupted: &AtomicBool) -> Result<(), RuntimeError> {
     // Step 4: Shutdown.
     runtime.shutdown()?;
 
-    tracing::debug!("Javryn V0.1 finished");
+    tracing::debug!("Javryn finished");
     Ok(())
 }
 

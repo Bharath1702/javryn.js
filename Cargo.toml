@@ -8,7 +8,7 @@ edition = "2024"
 authors = ["Javryn Contributors"]
 license = "MIT"
 description = "A high-performance, parallel JavaScript runtime foundation"
-repository = "https://github.com/javryn/javryn"
+repository = "https://github.com/Bharath1702/javryn.js"
 
 [workspace.dependencies]
 # Internal crates
